@@ -8,7 +8,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { AGENTS, getAgent, getConversation, addMessage, clearConversation, clearAllConversations } = require('./agents');
 const { DATA_ANALYST_TOOLS, buildWeeklySummarySQL } = require('./tools');
 const { MARKET_AGENT_TOOLS } = require('./market-tools');
-const { TREND_AGENT_TOOLS, loadMusinsaData, queryRanking, getRankingSummary, getCategoryTrend } = require('./trend-tools');
+const { TREND_AGENT_TOOLS, loadMusinsaData, queryRanking, getRankingSummary, getCategoryTrend, buildRisingKeywordsSQL } = require('./trend-tools');
 const { executeQuery, isConnected } = require('./snowflake');
 const { loadAll, queryProducts, getBrandSummary, compareBrands, getProductCount } = require('./competitors');
 
@@ -105,6 +105,20 @@ async function executeTool(toolName, toolInput) {
   if (toolName === 'get_category_trend') {
     console.log(`[Tool] get_category_trend — ${toolInput.category}`);
     const result = getCategoryTrend(toolInput.category);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'query_naver_keywords') {
+    console.log(`[Tool] query_naver_keywords — ${toolInput.purpose}`);
+    console.log(`[Tool] SQL: ${toolInput.sql}`);
+    const result = await executeQuery(toolInput.sql);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'get_rising_keywords') {
+    const sql = buildRisingKeywordsSQL(toolInput.direction, toolInput.limit);
+    console.log(`[Tool] get_rising_keywords — ${toolInput.direction}, limit=${toolInput.limit || 20}`);
+    const result = await executeQuery(sql);
     return JSON.stringify(result, null, 2);
   }
 

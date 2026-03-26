@@ -205,8 +205,105 @@ const TREND_AGENT_TOOLS = [
       },
       required: ['category']
     }
+  },
+
+  // ── Snowflake 키워드 트렌드 도구 ────────────────────────────────────────────
+
+  {
+    name: 'query_naver_keywords',
+    description: `네이버 검색 키워드 데이터를 Snowflake에서 조회합니다 (SELECT 쿼리).
+
+대상 테이블들:
+1. FNF.PRCS.DB_SRCH_KWD_NAVER_W — 네이버 주차별 검색량 (10년치, 22,134 키워드)
+   컬럼: START_DT(DATE), END_DT(DATE), KWD(TEXT), DVC('pc'/'mo'), SRCH_CNT(NUMBER)
+
+2. FNF.MKT.DM_NAVER_KWD_RANK_W — 브랜드별 키워드 순위
+   컬럼: BRD_CD, NEW_CAT1/2/3, RANK_THIS, KWD_NM, RANKING, CNT_THIS, CNT_LAST, UPDATE_DT
+
+3. FNF.MKT.MW_NAVER_SHOPPING_TREND_KWD — 네이버 쇼핑 트렌드 키워드
+   컬럼: DT, AGE_GENDER, MAIN_CATEGORY, MID_CATEGORY, SUB_CATEGORY, RANK, KWD, MOVEMENT
+
+4. FNF.MKT.DW_NAVER_SHOPPING_BRD_RNK — 네이버 쇼핑 브랜드 랭킹
+   컬럼: MAIN_CATEGORY, MID_CATEGORY, SUB_CATEGORY, GENDER_FILTER, RANKING, KEYWORD, MOVEMENT, UPDATE_DATE
+
+제약: SELECT만 가능, 최대 200행, 30초 타임아웃.
+DVC는 'pc' 또는 'mo'. 전체 합산 시 pc+mo를 GROUP BY KWD로 합산.
+주차 비교 시 START_DT 기준으로 최근 주 vs 전주를 비교하면 상승/하락 키워드를 도출할 수 있음.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        sql: {
+          type: 'string',
+          description: '실행할 SELECT SQL 쿼리'
+        },
+        purpose: {
+          type: 'string',
+          description: '이 쿼리를 실행하는 이유'
+        }
+      },
+      required: ['sql', 'purpose']
+    }
+  },
+  {
+    name: 'get_rising_keywords',
+    description: `최근 2주간 검색량 변화를 비교하여 급상승/급하락 키워드를 자동 산출합니다.
+pc+mo 합산 기준, 전주 대비 증감률로 정렬합니다.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        direction: {
+          type: 'string',
+          enum: ['rising', 'falling'],
+          description: 'rising=급상승, falling=급하락'
+        },
+        limit: {
+          type: 'number',
+          description: '반환 수 (기본 20)'
+        }
+      },
+      required: ['direction']
+    }
   }
 ];
+
+// get_rising_keywords용 SQL 생성
+function buildRisingKeywordsSQL(direction, limit) {
+  limit = Math.min(Math.max(1, limit || 20), 50);
+  const orderDir = direction === 'falling' ? 'ASC' : 'DESC';
+
+  return `WITH recent_weeks AS (
+  SELECT DISTINCT START_DT
+  FROM FNF.PRCS.DB_SRCH_KWD_NAVER_W
+  ORDER BY START_DT DESC
+  LIMIT 2
+),
+this_week AS (
+  SELECT KWD, SUM(SRCH_CNT) AS cnt
+  FROM FNF.PRCS.DB_SRCH_KWD_NAVER_W
+  WHERE START_DT = (SELECT MAX(START_DT) FROM recent_weeks)
+  GROUP BY KWD
+),
+last_week AS (
+  SELECT KWD, SUM(SRCH_CNT) AS cnt
+  FROM FNF.PRCS.DB_SRCH_KWD_NAVER_W
+  WHERE START_DT = (SELECT MIN(START_DT) FROM recent_weeks)
+  GROUP BY KWD
+)
+SELECT
+  t.KWD,
+  t.cnt AS THIS_WEEK,
+  COALESCE(l.cnt, 0) AS LAST_WEEK,
+  t.cnt - COALESCE(l.cnt, 0) AS DIFF,
+  CASE WHEN COALESCE(l.cnt, 0) > 0
+    THEN ROUND((t.cnt - l.cnt) * 100.0 / l.cnt, 1)
+    ELSE 9999
+  END AS CHANGE_PCT
+FROM this_week t
+LEFT JOIN last_week l ON t.KWD = l.KWD
+WHERE t.cnt >= 100
+ORDER BY CHANGE_PCT ${orderDir}
+LIMIT ${limit}`;
+}
 
 module.exports = {
   TREND_AGENT_TOOLS,
@@ -214,4 +311,5 @@ module.exports = {
   queryRanking,
   getRankingSummary,
   getCategoryTrend,
+  buildRisingKeywordsSQL,
 };
