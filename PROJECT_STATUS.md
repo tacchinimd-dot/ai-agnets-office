@@ -1,46 +1,69 @@
 # AI Agents Office — Project Status
 
-> 최종 업데이트: 2026-03-25
+> 최종 업데이트: 2026-03-26
 
 ## 프로젝트 개요
 
 AI 에이전트 5명이 사무실에서 일하는 모습을 시뮬레이션하는 2D 캔버스 애플리케이션.
-Node.js 백엔드 + Claude API를 연동하여 사용자가 에이전트와 1:1 또는 전체 회의 형태로 실시간 대화가 가능한 시스템. Phase 1(채팅 시스템) 구현 완료, API 키 설정 후 즉시 사용 가능.
+Node.js 백엔드 + Claude API(Haiku 4.5)를 연동하여 사용자가 에이전트와 1:1 또는 전체 회의 형태로 실시간 대화가 가능한 시스템.
+**5명 전원이 각자의 데이터 소스를 보유** — Snowflake, 크롤러, 로컬 파일을 Claude tool_use로 연결하여 데이터 기반 의사결정이 가능.
+GitHub 연동 완료, Render.com 배포 준비 완료.
 
 ## 아키텍처
 
 ```
-[브라우저]                        [서버]              [외부]
-┌──────────────┐                ┌──────────┐      ┌───────────┐
-│ 2D 오피스    │  ←WebSocket→   │ Node.js  │ ───▶ │ Claude API│
-│ + 채팅 패널  │                │ Express  │      │ (Haiku)   │
-└──────────────┘                └──────────┘      └───────────┘
+[브라우저]                        [서버]                    [외부]
+┌──────────────┐                ┌──────────────┐      ┌───────────────┐
+│ 2D 오피스    │  ←WebSocket→   │ Node.js      │ ───▶ │ Claude API    │
+│ + 채팅 패널  │                │ Express      │      │ (Haiku 4.5)   │
+└──────────────┘                │              │      └───────────────┘
+                                │  tool_use ↕  │      ┌───────────────┐
+                                │  이서연: 경쟁사│ ───▶ │ Snowflake     │
+                                │  김하늘: 트렌드│      │ (FNF.PRCS/MKT)│
+                                │  박도현: 상품  │      └───────────────┘
+                                │  최재원: 판매  │      ┌───────────────┐
+                                │              │ ───▶ │ Python 크롤러  │
+                                └──────────────┘      │ (무신사/TikTok)│
+                                                      └───────────────┘
 ```
 
 ## 파일 구조
 
 ```
 C:\Users\AD0903\ai_office_project\
-├── ai_agents_office.html   ← 프론트엔드 (2D 오피스 + 채팅 UI)
-├── server/                  ← Node.js 백엔드
-│   ├── index.js             ← Express + WebSocket 서버 + tool_use 루프
-│   ├── agents.js            ← 에이전트별 system prompt & 대화 관리
-│   ├── snowflake.js         ← Snowflake 연결 + 안전한 쿼리 실행
-│   ├── tools.js             ← 최재원용 Claude tool_use 도구 정의
-│   ├── competitors.js       ← 경쟁사 데이터 로더 (Excel/JSON → 메모리)
-│   ├── market-tools.js      ← 이서연용 Claude tool_use 도구 정의
-│   ├── trend-tools.js       ← 김하늘용 Claude tool_use 도구 정의 (무신사)
-│   ├── bundle-data.js       ← 로컬 데이터 → server/data/ 번들링 스크립트
-│   ├── data/                ← 번들 데이터 (Render 배포용)
-│   │   ├── competitors.json  ← 경쟁사 5개 브랜드 839개 상품
+├── ai_agents_office.html        ← 프론트엔드 (2D 오피스 + 채팅 UI)
+├── index.html                   ← ai_agents_office.html 복사 (Render용)
+├── package.json                 ← 루트 (Render 빌드/시작 커맨드)
+├── render.yaml                  ← Render.com 배포 설정
+│
+├── server/                      ← Node.js 백엔드
+│   ├── index.js                 ← Express + WebSocket + tool_use 루프 (5명 전원)
+│   ├── agents.js                ← 에이전트별 system prompt & 대화 관리
+│   ├── snowflake.js             ← Snowflake 연결 + 안전한 쿼리 실행
+│   ├── tools.js                 ← 최재원용 도구 (판매 실적 분석)
+│   ├── product-tools.js         ← 박도현용 도구 (상품 기획/원가/카테고리)
+│   ├── market-tools.js          ← 이서연용 도구 (경쟁사 비교)
+│   ├── trend-tools.js           ← 김하늘용 도구 (무신사/TikTok/네이버/구글)
+│   ├── competitors.js           ← 경쟁사 데이터 로더 (Excel/JSON → 메모리)
+│   ├── bundle-data.js           ← 로컬 데이터 → server/data/ 번들링 스크립트
+│   ├── data/                    ← 번들 데이터 (Render 배포용)
+│   │   ├── competitors.json     ← 경쟁사 5개 브랜드 839개 상품
 │   │   ├── musinsa_ranking.json ← 무신사 Top 100 랭킹
 │   │   └── tiktok_hashtags.json ← TikTok Top 100 해시태그
-│   ├── .env                 ← API 키 + Snowflake 접속 정보 (gitignore)
+│   ├── .env                     ← API 키 + Snowflake 접속 정보 (gitignore)
 │   └── package.json
+│
+├── Consumer Trend Agent/        ← 김하늘 전용 데이터 폴더
+│   ├── musinsa_rank/            ← 무신사 랭킹 크롤러 + 히스토리 대시보드
+│   ├── tiktok_hashtag_crawler/  ← TikTok 해시태그 크롤러 + 결과
+│   └── google_trend_keyword/    ← Google Trends CSV (수동 업로드)
+│
 ├── PROJECT_STATUS.md
 ├── CLAUDE.md
 └── .gitignore
 ```
+
+**GitHub:** https://github.com/tacchinimd-dot/ai-agnets-office (public)
 
 ## 에이전트 현황
 
@@ -52,17 +75,27 @@ C:\Users\AD0903\ai_office_project\
 | 3 | 박도현 | Product Planning / 상품 기획 MD | #E05040 | 남 |
 | 4 | 최재원 | Data Analyst / 데이터 분석가 | #9055D8 | 남 |
 
-### 에이전트별 데이터 접근 현황
+### 에이전트별 데이터 접근 현황 (전원 연결 완료)
 
-| 에이전트 | tool_use | 데이터 소스 | 도구 수 | 상태 |
-|---------|----------|-----------|---------|------|
-| 한준혁 (CEO) | - | 없음. 회의에서 타 에이전트 발언을 종합하여 의사결정 | 0 | ✅ |
-| 이서연 (Market) | ✅ | 경쟁사 크롤링 데이터 (Alo/Wilson/Sergio/RL/Lacoste, 839개 상품) | 3 | ✅ |
-| 김하늘 (Trend) | ✅ | 네이버 키워드(Snowflake) + Google Trends(CSV) + 무신사 랭킹(크롤러) + TikTok 해시태그(크롤러) | 11 | ✅ |
-| 박도현 (Product) | - | 데이터 미제공 (추후 연결 예정) | 0 | ⏳ 대기 |
-| 최재원 (Data) | ✅ | Snowflake `FNF.PRCS.DB_SCS_W` 주차별 판매/입고/재고 데이터 | 2 | ✅ (비밀번호 설정 필요) |
+| 에이전트 | tool_use | 데이터 소스 | 도구 수 | 핵심 질문 |
+|---------|----------|-----------|---------|----------|
+| 한준혁 (CEO) | - | 없음. 회의에서 타 에이전트 발언을 종합하여 의사결정 | 0 | "전략 방향은?" |
+| 이서연 (Market) | ✅ | 경쟁사 크롤링 5개 브랜드 839개 상품 | 3 | "경쟁사는 뭘 하는가?" |
+| 김하늘 (Trend) | ✅ | 네이버 키워드 + Google Trends + 무신사 + TikTok | 11 | "사람들은 뭘 원하는가?" |
+| 박도현 (Product) | ✅ | 상품 마스터 + 카테고리 판매 + 원가 + 상품 랭킹 (Snowflake) | 3 | "뭘 만들어야 하는가?" |
+| 최재원 (Data) | ✅ | 채널별 판매 실적 DB_SCS_W (Snowflake) | 2 | "전략이 맞는가?" |
 
-#### 김하늘 4대 데이터 소스 상세
+#### 이서연 (Market Agent) — 경쟁사 분석 도구 3개
+
+| 도구 | 기능 |
+|------|------|
+| query_competitors | 5개 브랜드 상품 필터 검색 (가격/카테고리/소재/Vision AI) |
+| get_brand_summary | 브랜드별 요약 통계 |
+| compare_brands | 브랜드 간 지표 비교 (가격/카테고리/감성/소재) |
+
+> 데이터: Alo Yoga(254), Wilson(115), Sergio Tacchini(50), Ralph Lauren(229), Lacoste(191)
+
+#### 김하늘 (Trend Agent) — 4대 데이터 소스, 도구 11개
 
 | 소스 | 유형 | 데이터 | 도구 |
 |------|------|-------|------|
@@ -72,6 +105,28 @@ C:\Users\AD0903\ai_office_project\
 | TikTok 해시태그 | 크롤러 + JSON | 글로벌 7일 Top 100 해시태그/조회수 | query_tiktok_hashtags, get_tiktok_summary, run_tiktok_crawler |
 
 > 김하늘의 데이터는 김하늘만 직접 조회 가능. 다른 에이전트는 회의 대화를 통해서만 전달받음.
+> 무신사/TikTok 크롤러는 주 1회 직접 실행 가능.
+
+#### 박도현 (Product Planning) — 상품 기획 도구 3개
+
+| 도구 | 기능 |
+|------|------|
+| query_product_db | 7개 Snowflake 테이블 자유 쿼리 (상품/원가/랭킹/재고/가격) |
+| get_category_performance | 카테고리별 주차 판매+재고 성과 |
+| get_top_selling_styles | 자사 상품 판매 랭킹 TOP N |
+
+> 주요 테이블: DB_PRDT(상품 마스터), CTGR_SALES_W(카테고리 판매), DB_COST_MST(원가), DM_FNF_PRDT_RNK_W(상품 랭킹)
+
+#### 최재원 (Data Analyst) — 판매 실적 도구 2개
+
+| 도구 | 기능 |
+|------|------|
+| query_snowflake | DB_SCS_W 자유 쿼리 (채널별 판매/입고/재고) |
+| get_weekly_summary | 최근 N주 채널별 판매 요약 |
+
+> 박도현과 최재원의 차이: 같은 Snowflake이지만 다른 테이블, 다른 관점
+> - 최재원: "CNS 채널 매출 15% 하락" (실적 검증)
+> - 박도현: "레깅스 SKU 늘리고 마크업 3.2배 유지" (상품 기획)
 
 ## 사무실 레이아웃
 
@@ -149,13 +204,21 @@ C:\Users\AD0903\ai_office_project\
 - [x] Google Trends CSV 자동 로드 (최신 파일 자동 감지)
 - [x] 4대 데이터 소스 교차분석 프레임 (네이버/구글/무신사/TikTok)
 
+### Phase 2.9 — 박도현 상품 기획 데이터 연동 (완료)
+- [x] 박도현(Product Planning) 전용 Claude tool_use 구현
+- [x] 도구: query_product_db (7개 테이블 자유 쿼리), get_category_performance (카테고리 판매+재고), get_top_selling_styles (판매 랭킹)
+- [x] Snowflake 테이블: DB_PRDT(상품 마스터), CTGR_SALES_W(카테고리 판매), DB_COST_MST(원가), DM_FNF_PRDT_RNK_W(상품 랭킹), DB_SCS_STOCK(재고), DW_PRDT_PRICE(가격), DB_PRDT_SIMILAR_ML(유사상품)
+- [x] 최재원과 역할 분리: 최재원=실적 검증(DB_SCS_W), 박도현=상품 기획(DB_PRDT+CTGR_SALES_W+DB_COST_MST)
+- [x] 기획 분석 가이드 포함 (재고회전율, 마크업, 소재/핏 패턴 분석)
+
+**→ Phase 2 완료: 5명 전원 데이터 연결 (CEO 제외, 의도적)**
+
 ## 미구현 / 추후 작업 (Phase 3+)
 
-- [ ] 박도현(Product Planning) 데이터 연결 (추후 데이터 제공 시)
+- [ ] Snowflake 비밀번호 설정 → 최재원/김하늘/박도현 Snowflake 도구 활성화
+- [ ] Render.com 배포 + 환경변수 등록 → URL 기반 서비스
 - [ ] Snowflake에 전체 브랜드 데이터 업로드 (권한 확보 후)
-- [ ] Snowflake 비밀번호 설정 → 최재원/김하늘 Snowflake 도구 활성화
-- [ ] Render.com 배포 + 환경변수 등록
-- [ ] 전체 회의 모드에서 이서연/김하늘/최재원 tool_use 지원
+- [ ] 전체 회의 모드에서 에이전트 tool_use 지원
 - [ ] 에이전트 작업 결과물 패널
 - [ ] SKILL / STATUS 뱃지 시스템
 
@@ -168,6 +231,8 @@ C:\Users\AD0903\ai_office_project\
 | 2026-03-24 | 워크스테이션 방향 반전 — 캐릭터가 모니터 앞에 앉아 뒷모습 보임 |
 | 2026-03-24 | PROJECT_STATUS.md / CLAUDE.md / .gitignore 생성 |
 | 2026-03-25 | Phase 1 완료 — Node.js 백엔드 + 채팅 패널 UI + WebSocket 스트리밍 |
+| 2026-03-26 | **Phase 2 전체 완료** — 5명 전원 데이터 연결, 총 도구 19개 |
+| 2026-03-26 | Phase 2.9 완료 — 박도현 상품 기획 tool_use 연동 (7개 Snowflake 테이블) |
 | 2026-03-26 | Phase 2.8 완료 — 김하늘 4대 소스 연동 (네이버/구글/무신사/TikTok, 도구 11개) |
 | 2026-03-26 | Phase 2.7 완료 — Render 배포 준비 (루트 package.json, 데이터 번들링, GitHub) |
 | 2026-03-26 | Phase 2.6 완료 — 김하늘 무신사 랭킹 tool_use 연동 (Top 100) |
