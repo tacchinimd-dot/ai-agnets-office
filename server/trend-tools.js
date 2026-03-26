@@ -166,6 +166,117 @@ function getCategoryTrend(category) {
   };
 }
 
+// ── Google Trends 데이터 ──────────────────────────────────────────────────────
+
+const GOOGLE_TREND_DIR = path.join(__dirname, '..', 'Consumer Trend Agent', 'google_trend_keyword');
+let googleTrends = [];
+let googleTrendsDate = null;
+
+function loadGoogleTrends() {
+  if (!fs.existsSync(GOOGLE_TREND_DIR)) {
+    console.log('  [Google Trends] 폴더 없음');
+    return { total: 0 };
+  }
+
+  // 최신 CSV 파일 찾기 (파일명에 날짜 포함)
+  const files = fs.readdirSync(GOOGLE_TREND_DIR)
+    .filter(f => /^trending.*\.csv$/i.test(f))
+    .sort()
+    .reverse();
+
+  if (!files.length) {
+    console.log('  [Google Trends] CSV 파일 없음');
+    return { total: 0 };
+  }
+
+  const filePath = path.join(GOOGLE_TREND_DIR, files[0]);
+
+  // 파일명에서 날짜 추출 (예: trending_KR_7d_20260326-1112.csv)
+  const dateMatch = files[0].match(/(\d{8})/);
+  googleTrendsDate = dateMatch ? dateMatch[1].replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : null;
+
+  // CSV 파싱 (간단한 파서, 첫 100행만)
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const lines = content.split('\n').filter(l => l.trim());
+
+  googleTrends = [];
+  for (let i = 1; i < Math.min(lines.length, 101); i++) {
+    // CSV 파싱: 따옴표 처리
+    const match = lines[i].match(/^"([^"]*?)","([^"]*?)","([^"]*?)"(?:,"([^"]*?)")?,"([^"]*?)"/);
+    if (!match) continue;
+
+    const [, keyword, volume, startDate, endDate, relatedTerms] = match;
+
+    // 검색량 파싱 (예: "10만+", "5천+", "200+")
+    let volumeNum = 0;
+    const volStr = volume.replace(/[+,]/g, '');
+    if (volStr.includes('만')) volumeNum = parseFloat(volStr) * 10000;
+    else if (volStr.includes('천')) volumeNum = parseFloat(volStr) * 1000;
+    else volumeNum = parseInt(volStr) || 0;
+
+    googleTrends.push({
+      rank: i,
+      keyword,
+      volume,
+      volumeNum,
+      startDate: startDate || '',
+      endDate: endDate || '',
+      relatedTerms: relatedTerms ? relatedTerms.split(',').slice(0, 5).map(t => t.trim()) : [],
+    });
+  }
+
+  console.log(`  [Google Trends] ${filePath} → ${googleTrends.length}개 키워드 (${googleTrendsDate})`);
+  return { total: googleTrends.length, date: googleTrendsDate, file: files[0] };
+}
+
+function queryGoogleTrends(filters = {}) {
+  let result = [...googleTrends];
+
+  if (filters.keyword) {
+    const k = filters.keyword.toLowerCase();
+    result = result.filter(r =>
+      r.keyword.toLowerCase().includes(k) ||
+      r.relatedTerms.some(t => t.toLowerCase().includes(k))
+    );
+  }
+  if (filters.minVolume) result = result.filter(r => r.volumeNum >= filters.minVolume);
+
+  if (filters.sortBy === 'volume') result.sort((a, b) => b.volumeNum - a.volumeNum);
+  else result.sort((a, b) => a.rank - b.rank);
+
+  const limit = Math.min(filters.limit || 30, 100);
+  return {
+    total: result.length,
+    date: googleTrendsDate,
+    items: result.slice(0, limit).map(r => ({
+      rank: r.rank,
+      keyword: r.keyword,
+      volume: r.volume,
+      relatedTerms: r.relatedTerms,
+    })),
+  };
+}
+
+function getGoogleTrendsSummary() {
+  const top20 = googleTrends.slice(0, 20).map(r => ({
+    rank: r.rank, keyword: r.keyword, volume: r.volume,
+    relatedTerms: r.relatedTerms.slice(0, 3),
+  }));
+
+  // 검색량 기준 TOP 10
+  const topByVolume = [...googleTrends]
+    .sort((a, b) => b.volumeNum - a.volumeNum)
+    .slice(0, 10)
+    .map(r => ({ rank: r.rank, keyword: r.keyword, volume: r.volume }));
+
+  return {
+    total: googleTrends.length,
+    date: googleTrendsDate,
+    top20,
+    topByVolume,
+  };
+}
+
 // ── TikTok 데이터 ────────────────────────────────────────────────────────────
 
 let tiktokHashtags = [];
@@ -338,6 +449,37 @@ DVC는 'pc' 또는 'mo'. 전체 합산 시 pc+mo를 GROUP BY KWD로 합산.
         }
       },
       required: ['sql', 'purpose']
+    }
+  },
+  // ── Google Trends 도구 ──
+  {
+    name: 'query_google_trends',
+    description: `Google Trends 한국 인기 검색어를 조회합니다 (지난 7일, 최대 100개).
+각 키워드의 순위, 검색량, 관련 검색어를 제공합니다.
+사용자가 주기적으로 CSV를 업로드하며, 가장 최신 파일을 자동으로 읽습니다.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        keyword: { type: 'string', description: '키워드 검색 (키워드명 또는 관련 검색어에서 매칭)' },
+        minVolume: { type: 'number', description: '최소 검색량 필터 (예: 10000)' },
+        sortBy: {
+          type: 'string',
+          enum: ['rank', 'volume'],
+          description: '정렬 (기본: rank)'
+        },
+        limit: { type: 'number', description: '최대 반환 수 (기본 30)' },
+      },
+      required: []
+    }
+  },
+  {
+    name: 'get_google_trends_summary',
+    description: `Google Trends 전체 요약을 반환합니다.
+상위 20개 키워드 + 검색량 기준 TOP 10`,
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
     }
   },
   // ── TikTok 도구 ──
@@ -633,11 +775,14 @@ module.exports = {
   TREND_AGENT_TOOLS,
   loadMusinsaData,
   loadTiktokData,
+  loadGoogleTrends,
   queryRanking,
   getRankingSummary,
   getCategoryTrend,
   queryTiktokHashtags,
   getTiktokSummary,
+  queryGoogleTrends,
+  getGoogleTrendsSummary,
   buildRisingKeywordsSQL,
   runMusinsaCrawler,
   runTiktokCrawler,

@@ -8,7 +8,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { AGENTS, getAgent, getConversation, addMessage, clearConversation, clearAllConversations } = require('./agents');
 const { DATA_ANALYST_TOOLS, buildWeeklySummarySQL } = require('./tools');
 const { MARKET_AGENT_TOOLS } = require('./market-tools');
-const { TREND_AGENT_TOOLS, loadMusinsaData, loadTiktokData, queryRanking, getRankingSummary, getCategoryTrend, queryTiktokHashtags, getTiktokSummary, buildRisingKeywordsSQL, runMusinsaCrawler, runTiktokCrawler } = require('./trend-tools');
+const { TREND_AGENT_TOOLS, loadMusinsaData, loadTiktokData, loadGoogleTrends, queryRanking, getRankingSummary, getCategoryTrend, queryTiktokHashtags, getTiktokSummary, queryGoogleTrends, getGoogleTrendsSummary, buildRisingKeywordsSQL, runMusinsaCrawler, runTiktokCrawler } = require('./trend-tools');
 const { executeQuery, isConnected } = require('./snowflake');
 const { loadAll, queryProducts, getBrandSummary, compareBrands, getProductCount } = require('./competitors');
 
@@ -105,6 +105,18 @@ async function executeTool(toolName, toolInput) {
   if (toolName === 'get_category_trend') {
     console.log(`[Tool] get_category_trend — ${toolInput.category}`);
     const result = getCategoryTrend(toolInput.category);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'query_google_trends') {
+    console.log(`[Tool] query_google_trends — filters:`, JSON.stringify(toolInput));
+    const result = queryGoogleTrends(toolInput);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'get_google_trends_summary') {
+    console.log(`[Tool] get_google_trends_summary`);
+    const result = getGoogleTrendsSummary();
     return JSON.stringify(result, null, 2);
   }
 
@@ -369,6 +381,17 @@ server.listen(PORT, () => {
     }
   } catch (err) {
     console.log(`⚠️  무신사 데이터 로드 실패: ${err.message}`);
+  }
+
+  // Google Trends 데이터 로드
+  console.log(`📊 Google Trends 데이터 로드 중...`);
+  try {
+    const gtResult = loadGoogleTrends();
+    if (gtResult.total > 0) {
+      console.log(`📊 Google Trends 로드 완료 — ${gtResult.total}개 키워드 (${gtResult.date})`);
+    }
+  } catch (err) {
+    console.log(`⚠️  Google Trends 로드 실패: ${err.message}`);
   }
 
   // TikTok 해시태그 데이터 로드
