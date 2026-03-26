@@ -6,9 +6,14 @@ const { execFile } = require('child_process');
 
 // ── 크롤러 경로 ──────────────────────────────────────────────────────────────
 
-const CRAWLER_DIR = path.join(__dirname, '..', 'Consumer Trend Agent', 'musinsa_rank');
-const CRAWLER_SCRIPT = path.join(CRAWLER_DIR, 'musinsa_ranking_crawler.py');
-let lastCrawlDate = null;
+const MUSINSA_DIR = path.join(__dirname, '..', 'Consumer Trend Agent', 'musinsa_rank');
+const MUSINSA_SCRIPT = path.join(MUSINSA_DIR, 'musinsa_ranking_crawler.py');
+let lastMusinsaCrawl = null;
+
+const TIKTOK_DIR = path.join(__dirname, '..', 'Consumer Trend Agent', 'tiktok_hashtag_crawler');
+const TIKTOK_SCRIPT = path.join(TIKTOK_DIR, 'tiktok_hashtag_crawler.py');
+const TIKTOK_OUTPUT = path.join(TIKTOK_DIR, 'output');
+let lastTiktokCrawl = null;
 
 // ── 데이터 로드 ──────────────────────────────────────────────────────────────
 
@@ -161,6 +166,90 @@ function getCategoryTrend(category) {
   };
 }
 
+// ── TikTok 데이터 ────────────────────────────────────────────────────────────
+
+let tiktokHashtags = [];
+let tiktokLoadedAt = null;
+
+function loadTiktokData() {
+  const latestPath = path.join(TIKTOK_OUTPUT, 'tiktok_hashtags_latest.json');
+  const bundlePath = path.join(__dirname, 'data', 'tiktok_hashtags.json');
+
+  const filePath = fs.existsSync(latestPath) ? latestPath : fs.existsSync(bundlePath) ? bundlePath : null;
+  if (!filePath) {
+    console.log('  [TikTok] 데이터 파일 없음');
+    return { total: 0 };
+  }
+
+  const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+  tiktokHashtags = raw.hashtags || [];
+  tiktokLoadedAt = raw.crawled_at || new Date().toISOString();
+  console.log(`  [TikTok] ${filePath} → ${tiktokHashtags.length}개 해시태그`);
+  return { total: tiktokHashtags.length };
+}
+
+function queryTiktokHashtags(filters = {}) {
+  let result = [...tiktokHashtags];
+
+  if (filters.keyword) {
+    const k = filters.keyword.toLowerCase();
+    result = result.filter(r => r.hashtag.toLowerCase().includes(k));
+  }
+  if (filters.newOnly) {
+    result = result.filter(r => r.rank_diff_type === 2);
+  }
+  if (filters.risingOnly) {
+    result = result.filter(r => r.rank_diff_type === 1);
+  }
+  if (filters.minRank) result = result.filter(r => r.rank >= filters.minRank);
+  if (filters.maxRank) result = result.filter(r => r.rank <= filters.maxRank);
+
+  if (filters.sortBy === 'views') result.sort((a, b) => (b.video_views || 0) - (a.video_views || 0));
+  else if (filters.sortBy === 'posts') result.sort((a, b) => (b.posts || 0) - (a.posts || 0));
+  else result.sort((a, b) => a.rank - b.rank);
+
+  const limit = Math.min(filters.limit || 30, 100);
+  return {
+    total: result.length,
+    crawledAt: tiktokLoadedAt,
+    items: result.slice(0, limit).map(r => ({
+      rank: r.rank,
+      hashtag: r.hashtag,
+      posts: r.posts,
+      views: r.video_views,
+      rankDiff: r.rank_diff,
+      diffType: r.rank_diff_type === 1 ? 'rising' : r.rank_diff_type === 2 ? 'new' : r.rank_diff_type === 3 ? 'falling' : 'same',
+      isPromoted: r.is_promoted,
+    })),
+  };
+}
+
+function getTiktokSummary() {
+  const newCount = tiktokHashtags.filter(r => r.rank_diff_type === 2).length;
+  const risingCount = tiktokHashtags.filter(r => r.rank_diff_type === 1).length;
+  const fallingCount = tiktokHashtags.filter(r => r.rank_diff_type === 3).length;
+
+  const topByViews = [...tiktokHashtags]
+    .sort((a, b) => (b.video_views || 0) - (a.video_views || 0))
+    .slice(0, 10)
+    .map(r => ({ rank: r.rank, hashtag: r.hashtag, views: r.video_views, posts: r.posts }));
+
+  const topByPosts = [...tiktokHashtags]
+    .sort((a, b) => (b.posts || 0) - (a.posts || 0))
+    .slice(0, 10)
+    .map(r => ({ rank: r.rank, hashtag: r.hashtag, posts: r.posts, views: r.video_views }));
+
+  return {
+    total: tiktokHashtags.length,
+    crawledAt: tiktokLoadedAt,
+    newEntries: newCount,
+    risingCount,
+    fallingCount,
+    topByViews,
+    topByPosts,
+  };
+}
+
 // ── 도구 정의 ────────────────────────────────────────────────────────────────
 
 const TREND_AGENT_TOOLS = [
@@ -251,6 +340,51 @@ DVC는 'pc' 또는 'mo'. 전체 합산 시 pc+mo를 GROUP BY KWD로 합산.
       required: ['sql', 'purpose']
     }
   },
+  // ── TikTok 도구 ──
+  {
+    name: 'query_tiktok_hashtags',
+    description: `TikTok 인기 해시태그 Top 100 데이터를 검색합니다 (글로벌 기준, 7일 기간).
+각 해시태그의 순위, 게시물 수, 총 조회수, 순위 변동(상승/신규/하락/유지) 데이터를 제공합니다.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        keyword: { type: 'string', description: '해시태그 키워드 검색' },
+        newOnly: { type: 'boolean', description: 'true면 신규 진입 해시태그만' },
+        risingOnly: { type: 'boolean', description: 'true면 상승 중인 해시태그만' },
+        maxRank: { type: 'number', description: '상위 N위까지만 (예: 20 = Top 20)' },
+        sortBy: {
+          type: 'string',
+          enum: ['rank', 'views', 'posts'],
+          description: '정렬 기준 (기본: rank)'
+        },
+        limit: { type: 'number', description: '최대 반환 수 (기본 30)' },
+      },
+      required: []
+    }
+  },
+  {
+    name: 'get_tiktok_summary',
+    description: `TikTok 트렌딩 해시태그 전체 요약을 반환합니다.
+신규 진입 수, 상승/하락 수, 조회수 TOP 10, 게시물수 TOP 10`,
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'run_tiktok_crawler',
+    description: `TikTok 해시태그 크롤러를 실행합니다. 글로벌 인기 해시태그 Top 100을 수집합니다.
+주 1회만 실행 가능합니다. 실행 시 약 30~40초 소요됩니다.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        confirm: { type: 'boolean', description: '크롤링 실행 확인 (true 필수)' }
+      },
+      required: ['confirm']
+    }
+  },
+  // ── 무신사 도구 ──
   {
     name: 'run_musinsa_crawler',
     description: `무신사 랭킹 크롤러를 실행합니다. Top 100 상품의 최신 데이터를 수집합니다.
@@ -332,22 +466,22 @@ LIMIT ${limit}`;
 // ── 크롤러 실행 ──────────────────────────────────────────────────────────────
 
 function canRunCrawler() {
-  if (!lastCrawlDate) {
+  if (!lastMusinsaCrawl) {
     // 히스토리 파일에서 마지막 크롤 날짜 확인
-    const historyPath = path.join(CRAWLER_DIR, 'musinsa_ranking_history.json');
+    const historyPath = path.join(MUSINSA_DIR, 'musinsa_ranking_history.json');
     if (fs.existsSync(historyPath)) {
       try {
         const history = JSON.parse(fs.readFileSync(historyPath, 'utf-8'));
         if (history.length > 0) {
-          lastCrawlDate = history[0].date; // 최신 날짜
+          lastMusinsaCrawl = history[0].date; // 최신 날짜
         }
       } catch (e) { /* ignore */ }
     }
   }
 
-  if (!lastCrawlDate) return { allowed: true };
+  if (!lastMusinsaCrawl) return { allowed: true };
 
-  const last = new Date(lastCrawlDate);
+  const last = new Date(lastMusinsaCrawl);
   const now = new Date();
   const diffDays = (now - last) / (1000 * 60 * 60 * 24);
 
@@ -355,8 +489,8 @@ function canRunCrawler() {
     const nextDate = new Date(last.getTime() + 7 * 24 * 60 * 60 * 1000);
     return {
       allowed: false,
-      reason: `마지막 크롤링: ${lastCrawlDate}. 주 1회 제한으로 ${nextDate.toISOString().slice(0, 10)} 이후에 실행 가능합니다.`,
-      lastCrawl: lastCrawlDate,
+      reason: `마지막 크롤링: ${lastMusinsaCrawl}. 주 1회 제한으로 ${nextDate.toISOString().slice(0, 10)} 이후에 실행 가능합니다.`,
+      lastCrawl: lastMusinsaCrawl,
       nextAllowed: nextDate.toISOString().slice(0, 10),
     };
   }
@@ -372,15 +506,15 @@ function runMusinsaCrawler() {
       return;
     }
 
-    if (!fs.existsSync(CRAWLER_SCRIPT)) {
-      resolve({ success: false, reason: '크롤러 스크립트를 찾을 수 없습니다: ' + CRAWLER_SCRIPT });
+    if (!fs.existsSync(MUSINSA_SCRIPT)) {
+      resolve({ success: false, reason: '크롤러 스크립트를 찾을 수 없습니다: ' + MUSINSA_SCRIPT });
       return;
     }
 
     console.log('[Crawler] 무신사 랭킹 크롤러 실행 중...');
 
-    execFile('python', [CRAWLER_SCRIPT], {
-      cwd: CRAWLER_DIR,
+    execFile('python', [MUSINSA_SCRIPT], {
+      cwd: MUSINSA_DIR,
       timeout: 120000, // 2분 타임아웃
     }, (err, stdout, stderr) => {
       if (err) {
@@ -393,19 +527,102 @@ function runMusinsaCrawler() {
 
       // 데이터 리로드
       const reloadResult = loadMusinsaData();
-      lastCrawlDate = new Date().toISOString().slice(0, 10);
+      lastMusinsaCrawl = new Date().toISOString().slice(0, 10);
 
       // server/data/ 번들도 갱신
       const bundleDest = path.join(__dirname, 'data', 'musinsa_ranking.json');
-      const srcData = path.join(CRAWLER_DIR, 'musinsa_ranking_data.json');
+      const srcData = path.join(MUSINSA_DIR, 'musinsa_ranking_data.json');
       if (fs.existsSync(srcData)) {
         try { fs.copyFileSync(srcData, bundleDest); } catch (e) { /* ignore */ }
       }
 
       resolve({
         success: true,
-        date: lastCrawlDate,
+        date: lastMusinsaCrawl,
         productsLoaded: reloadResult.total,
+        output: stdout.slice(-500),
+      });
+    });
+  });
+}
+
+// ── TikTok 크롤러 실행 ───────────────────────────────────────────────────────
+
+function canRunTiktokCrawler() {
+  if (!lastTiktokCrawl) {
+    // latest.json의 crawled_at에서 확인
+    const latestPath = path.join(TIKTOK_OUTPUT, 'tiktok_hashtags_latest.json');
+    if (fs.existsSync(latestPath)) {
+      try {
+        const data = JSON.parse(fs.readFileSync(latestPath, 'utf-8'));
+        if (data.crawled_at) {
+          lastTiktokCrawl = data.crawled_at.slice(0, 10);
+        }
+      } catch (e) { /* ignore */ }
+    }
+  }
+
+  if (!lastTiktokCrawl) return { allowed: true };
+
+  const last = new Date(lastTiktokCrawl);
+  const now = new Date();
+  const diffDays = (now - last) / (1000 * 60 * 60 * 24);
+
+  if (diffDays < 7) {
+    const nextDate = new Date(last.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return {
+      allowed: false,
+      reason: `마지막 크롤링: ${lastTiktokCrawl}. 주 1회 제한으로 ${nextDate.toISOString().slice(0, 10)} 이후에 실행 가능합니다.`,
+      lastCrawl: lastTiktokCrawl,
+      nextAllowed: nextDate.toISOString().slice(0, 10),
+    };
+  }
+
+  return { allowed: true };
+}
+
+function runTiktokCrawler() {
+  return new Promise((resolve, reject) => {
+    const check = canRunTiktokCrawler();
+    if (!check.allowed) {
+      resolve({ success: false, ...check });
+      return;
+    }
+
+    if (!fs.existsSync(TIKTOK_SCRIPT)) {
+      resolve({ success: false, reason: '크롤러 스크립트를 찾을 수 없습니다: ' + TIKTOK_SCRIPT });
+      return;
+    }
+
+    console.log('[Crawler] TikTok 해시태그 크롤러 실행 중...');
+
+    execFile('python', [TIKTOK_SCRIPT], {
+      cwd: TIKTOK_DIR,
+      timeout: 120000,
+    }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('[Crawler Error]', err.message);
+        resolve({ success: false, reason: `크롤러 실행 오류: ${err.message}`, stderr });
+        return;
+      }
+
+      console.log('[Crawler] TikTok 완료:', stdout.slice(-200));
+
+      // 데이터 리로드
+      const reloadResult = loadTiktokData();
+      lastTiktokCrawl = new Date().toISOString().slice(0, 10);
+
+      // 번들 갱신
+      const bundleDest = path.join(__dirname, 'data', 'tiktok_hashtags.json');
+      const srcData = path.join(TIKTOK_OUTPUT, 'tiktok_hashtags_latest.json');
+      if (fs.existsSync(srcData)) {
+        try { fs.copyFileSync(srcData, bundleDest); } catch (e) { /* ignore */ }
+      }
+
+      resolve({
+        success: true,
+        date: lastTiktokCrawl,
+        hashtagsLoaded: reloadResult.total,
         output: stdout.slice(-500),
       });
     });
@@ -415,10 +632,13 @@ function runMusinsaCrawler() {
 module.exports = {
   TREND_AGENT_TOOLS,
   loadMusinsaData,
+  loadTiktokData,
   queryRanking,
   getRankingSummary,
   getCategoryTrend,
+  queryTiktokHashtags,
+  getTiktokSummary,
   buildRisingKeywordsSQL,
   runMusinsaCrawler,
-  canRunCrawler,
+  runTiktokCrawler,
 };

@@ -8,7 +8,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { AGENTS, getAgent, getConversation, addMessage, clearConversation, clearAllConversations } = require('./agents');
 const { DATA_ANALYST_TOOLS, buildWeeklySummarySQL } = require('./tools');
 const { MARKET_AGENT_TOOLS } = require('./market-tools');
-const { TREND_AGENT_TOOLS, loadMusinsaData, queryRanking, getRankingSummary, getCategoryTrend, buildRisingKeywordsSQL, runMusinsaCrawler } = require('./trend-tools');
+const { TREND_AGENT_TOOLS, loadMusinsaData, loadTiktokData, queryRanking, getRankingSummary, getCategoryTrend, queryTiktokHashtags, getTiktokSummary, buildRisingKeywordsSQL, runMusinsaCrawler, runTiktokCrawler } = require('./trend-tools');
 const { executeQuery, isConnected } = require('./snowflake');
 const { loadAll, queryProducts, getBrandSummary, compareBrands, getProductCount } = require('./competitors');
 
@@ -105,6 +105,27 @@ async function executeTool(toolName, toolInput) {
   if (toolName === 'get_category_trend') {
     console.log(`[Tool] get_category_trend — ${toolInput.category}`);
     const result = getCategoryTrend(toolInput.category);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'query_tiktok_hashtags') {
+    console.log(`[Tool] query_tiktok_hashtags — filters:`, JSON.stringify(toolInput));
+    const result = queryTiktokHashtags(toolInput);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'get_tiktok_summary') {
+    console.log(`[Tool] get_tiktok_summary`);
+    const result = getTiktokSummary();
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'run_tiktok_crawler') {
+    if (!toolInput.confirm) {
+      return JSON.stringify({ success: false, reason: 'confirm: true가 필요합니다' });
+    }
+    console.log(`[Tool] run_tiktok_crawler — 크롤링 시작`);
+    const result = await runTiktokCrawler();
     return JSON.stringify(result, null, 2);
   }
 
@@ -348,6 +369,17 @@ server.listen(PORT, () => {
     }
   } catch (err) {
     console.log(`⚠️  무신사 데이터 로드 실패: ${err.message}`);
+  }
+
+  // TikTok 해시태그 데이터 로드
+  console.log(`🎵 TikTok 해시태그 데이터 로드 중...`);
+  try {
+    const tiktokResult = loadTiktokData();
+    if (tiktokResult.total > 0) {
+      console.log(`🎵 TikTok 데이터 로드 완료 — 김하늘 트렌드 분석 활성화 (${tiktokResult.total}개 해시태그)`);
+    }
+  } catch (err) {
+    console.log(`⚠️  TikTok 데이터 로드 실패: ${err.message}`);
   }
 
   // 경쟁사 데이터 로드
