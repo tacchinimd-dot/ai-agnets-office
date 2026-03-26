@@ -256,10 +256,12 @@ def crawl_top_100() -> list[dict]:
     return result
 
 
-def generate_html(products: list[dict], output_path: str):
-    """수집된 데이터로 HTML 대시보드를 생성합니다."""
+def generate_html(history: list[dict], output_path: str):
+    """히스토리 데이터로 날짜별 탭 대시보드를 생성합니다.
+    history: [{date: "2026-03-24", products: [...]}, ...]
+    """
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    products_json = json.dumps(products, ensure_ascii=False, indent=2)
+    history_json = json.dumps(history, ensure_ascii=False, indent=2)
 
     html = f"""<!DOCTYPE html>
 <html lang="ko">
@@ -283,6 +285,20 @@ body {{ font-family: 'Segoe UI', -apple-system, sans-serif; background: #f5f5f5;
     background: #ff4800; color: #fff; padding: 4px 10px;
     border-radius: 12px; font-weight: 600; font-size: 12px;
 }}
+
+/* ── 날짜 탭 ── */
+.date-tabs {{
+    background: #111; padding: 0 32px; display: flex; gap: 0;
+    overflow-x: auto; border-bottom: 2px solid #ff4800;
+}}
+.date-tab {{
+    padding: 10px 20px; color: #888; font-size: 13px; font-weight: 600;
+    cursor: pointer; border: none; background: none;
+    border-bottom: 3px solid transparent; white-space: nowrap;
+    transition: all .15s; font-family: inherit;
+}}
+.date-tab:hover {{ color: #ddd; }}
+.date-tab.active {{ color: #fff; border-bottom-color: #ff4800; background: rgba(255,72,0,0.1); }}
 
 .controls {{
     background: #fff; padding: 16px 32px; border-bottom: 1px solid #e0e0e0;
@@ -422,10 +438,12 @@ tr:hover {{ background: #fafafa; }}
 <div class="header">
     <h1><span>MUSINSA</span> 랭킹 Top 100</h1>
     <div class="header-info">
-        <span>수집일시: {now}</span>
+        <span id="dateInfo">수집일시: {now}</span>
         <span class="badge" id="totalCount">0개</span>
     </div>
 </div>
+
+<div class="date-tabs" id="dateTabs"></div>
 
 <div class="controls">
     <input type="text" id="searchInput" placeholder="브랜드 / 상품명 검색...">
@@ -466,7 +484,9 @@ tr:hover {{ background: #fafafa; }}
 <div class="toast" id="toast"></div>
 
 <script>
-const PRODUCTS = {products_json};
+const HISTORY = {history_json};
+let PRODUCTS = HISTORY.length ? HISTORY[0].products : [];
+let currentDateIdx = 0;
 
 const CATEGORIES = [
     "아우터","상의","바지","원피스/스커트","신발","가방","모자","액세서리","속옷/잠옷","뷰티","식품/보충제","미분류"
@@ -503,6 +523,30 @@ function initCategoryFilter() {{
         opt.value = c; opt.textContent = c;
         select.appendChild(opt);
     }});
+}}
+
+// 날짜 탭 초기화
+function initDateTabs() {{
+    const container = document.getElementById("dateTabs");
+    HISTORY.forEach((entry, idx) => {{
+        const btn = document.createElement("button");
+        btn.className = "date-tab" + (idx === 0 ? " active" : "");
+        btn.textContent = entry.date + (idx === 0 ? " (최신)" : "");
+        btn.onclick = () => switchDate(idx);
+        container.appendChild(btn);
+    }});
+}}
+
+function switchDate(idx) {{
+    currentDateIdx = idx;
+    PRODUCTS = HISTORY[idx].products;
+    applyEdits(PRODUCTS);
+    // 탭 활성화
+    document.querySelectorAll(".date-tab").forEach((t, i) => {{
+        t.classList.toggle("active", i === idx);
+    }});
+    document.getElementById("dateInfo").textContent = "수집일: " + HISTORY[idx].date;
+    renderTable();
 }}
 
 // 통계 바 업데이트
@@ -691,7 +735,9 @@ document.getElementById("categoryFilter").addEventListener("change", renderTable
 document.getElementById("risingFilter").addEventListener("change", renderTable);
 
 // 초기화
+initDateTabs();
 initCategoryFilter();
+applyEdits(PRODUCTS);
 renderTable();
 </script>
 </body>
@@ -702,8 +748,40 @@ renderTable();
     print(f"HTML 대시보드 생성: {output_path}")
 
 
+def load_history(history_path: str) -> list[dict]:
+    """히스토리 파일을 로드합니다. 없으면 빈 리스트 반환."""
+    if os.path.exists(history_path):
+        with open(history_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+
+def migrate_legacy_data(output_dir: str, history: list[dict]) -> list[dict]:
+    """기존 단일 musinsa_ranking_data.json을 히스토리 첫 엔트리로 마이그레이션합니다."""
+    legacy_path = os.path.join(output_dir, "musinsa_ranking_data.json")
+    if not os.path.exists(legacy_path):
+        return history
+
+    # 이미 히스토리에 데이터가 있으면 스킵
+    if history:
+        return history
+
+    with open(legacy_path, "r", encoding="utf-8") as f:
+        legacy_products = json.load(f)
+
+    if legacy_products:
+        # 파일 수정일을 날짜로 사용
+        mtime = os.path.getmtime(legacy_path)
+        date_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
+        history.append({"date": date_str, "products": legacy_products})
+        print(f"  기존 데이터 마이그레이션: {date_str} ({len(legacy_products)}개)")
+
+    return history
+
+
 def main():
     output_dir = os.path.dirname(os.path.abspath(__file__))
+    history_path = os.path.join(output_dir, "musinsa_ranking_history.json")
 
     # 1. 크롤링
     products = crawl_top_100()
@@ -715,17 +793,34 @@ def main():
     # 2. 누적판매량 수집
     products = fetch_purchase_totals(products)
 
-    # 3. JSON 저장
+    # 3. 히스토리 로드 + 기존 데이터 마이그레이션
+    history = load_history(history_path)
+    history = migrate_legacy_data(output_dir, history)
+
+    # 4. 오늘 데이터 추가 (같은 날짜면 교체)
+    today = datetime.now().strftime("%Y-%m-%d")
+    history = [h for h in history if h["date"] != today]
+    history.insert(0, {"date": today, "products": products})
+
+    # 최신순 정렬 (최신이 앞)
+    history.sort(key=lambda h: h["date"], reverse=True)
+
+    # 5. 히스토리 저장
+    with open(history_path, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+    print(f"히스토리 저장: {history_path} ({len(history)}개 날짜)")
+
+    # 6. 최신 데이터를 단일 JSON으로도 저장 (하위 호환)
     json_path = os.path.join(output_dir, "musinsa_ranking_data.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(products, f, ensure_ascii=False, indent=2)
-    print(f"JSON 데이터 저장: {json_path}")
+    print(f"최신 JSON 저장: {json_path}")
 
-    # 4. HTML 대시보드 생성
+    # 7. HTML 대시보드 생성 (전체 히스토리 포함)
     html_path = os.path.join(output_dir, "musinsa_ranking_dashboard.html")
-    generate_html(products, html_path)
+    generate_html(history, html_path)
 
-    # 5. 요약
+    # 8. 요약
     categories = {}
     rising_count = 0
     unclassified = 0
@@ -737,11 +832,12 @@ def main():
             unclassified += 1
 
     print(f"\n{'='*50}")
-    print(f"수집 요약")
+    print(f"수집 요약 ({today})")
     print(f"{'='*50}")
     print(f"  총 상품: {len(products)}개")
     print(f"  급상승: {rising_count}개")
     print(f"  미분류: {unclassified}개")
+    print(f"  히스토리: {len(history)}개 날짜")
     print(f"\n  카테고리별:")
     for cat, cnt in sorted(categories.items(), key=lambda x: -x[1]):
         print(f"    {cat}: {cnt}개")

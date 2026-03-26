@@ -8,7 +8,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { AGENTS, getAgent, getConversation, addMessage, clearConversation, clearAllConversations } = require('./agents');
 const { DATA_ANALYST_TOOLS, buildWeeklySummarySQL } = require('./tools');
 const { MARKET_AGENT_TOOLS } = require('./market-tools');
-const { TREND_AGENT_TOOLS, loadMusinsaData, queryRanking, getRankingSummary, getCategoryTrend, buildRisingKeywordsSQL } = require('./trend-tools');
+const { TREND_AGENT_TOOLS, loadMusinsaData, queryRanking, getRankingSummary, getCategoryTrend, buildRisingKeywordsSQL, runMusinsaCrawler } = require('./trend-tools');
 const { executeQuery, isConnected } = require('./snowflake');
 const { loadAll, queryProducts, getBrandSummary, compareBrands, getProductCount } = require('./competitors');
 
@@ -105,6 +105,15 @@ async function executeTool(toolName, toolInput) {
   if (toolName === 'get_category_trend') {
     console.log(`[Tool] get_category_trend — ${toolInput.category}`);
     const result = getCategoryTrend(toolInput.category);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'run_musinsa_crawler') {
+    if (!toolInput.confirm) {
+      return JSON.stringify({ success: false, reason: 'confirm: true가 필요합니다' });
+    }
+    console.log(`[Tool] run_musinsa_crawler — 크롤링 시작`);
+    const result = await runMusinsaCrawler();
     return JSON.stringify(result, null, 2);
   }
 

@@ -2,6 +2,13 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
+
+// ── 크롤러 경로 ──────────────────────────────────────────────────────────────
+
+const CRAWLER_DIR = path.join(__dirname, '..', 'Consumer Trend Agent', 'musinsa_rank');
+const CRAWLER_SCRIPT = path.join(CRAWLER_DIR, 'musinsa_ranking_crawler.py');
+let lastCrawlDate = null;
 
 // ── 데이터 로드 ──────────────────────────────────────────────────────────────
 
@@ -245,6 +252,23 @@ DVC는 'pc' 또는 'mo'. 전체 합산 시 pc+mo를 GROUP BY KWD로 합산.
     }
   },
   {
+    name: 'run_musinsa_crawler',
+    description: `무신사 랭킹 크롤러를 실행합니다. Top 100 상품의 최신 데이터를 수집합니다.
+주 1회만 실행 가능합니다. 실행 시 약 20~30초 소요됩니다.
+크롤링 완료 후 자동으로: JSON 데이터 갱신, 히스토리 누적, 대시보드 HTML 업데이트.
+이전 데이터는 대시보드의 날짜 탭에서 계속 확인 가능합니다.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        confirm: {
+          type: 'boolean',
+          description: '크롤링 실행을 확인합니다 (true 필수)'
+        }
+      },
+      required: ['confirm']
+    }
+  },
+  {
     name: 'get_rising_keywords',
     description: `최근 2주간 검색량 변화를 비교하여 급상승/급하락 키워드를 자동 산출합니다.
 pc+mo 합산 기준, 전주 대비 증감률로 정렬합니다.`,
@@ -305,6 +329,89 @@ ORDER BY CHANGE_PCT ${orderDir}
 LIMIT ${limit}`;
 }
 
+// ── 크롤러 실행 ──────────────────────────────────────────────────────────────
+
+function canRunCrawler() {
+  if (!lastCrawlDate) {
+    // 히스토리 파일에서 마지막 크롤 날짜 확인
+    const historyPath = path.join(CRAWLER_DIR, 'musinsa_ranking_history.json');
+    if (fs.existsSync(historyPath)) {
+      try {
+        const history = JSON.parse(fs.readFileSync(historyPath, 'utf-8'));
+        if (history.length > 0) {
+          lastCrawlDate = history[0].date; // 최신 날짜
+        }
+      } catch (e) { /* ignore */ }
+    }
+  }
+
+  if (!lastCrawlDate) return { allowed: true };
+
+  const last = new Date(lastCrawlDate);
+  const now = new Date();
+  const diffDays = (now - last) / (1000 * 60 * 60 * 24);
+
+  if (diffDays < 7) {
+    const nextDate = new Date(last.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return {
+      allowed: false,
+      reason: `마지막 크롤링: ${lastCrawlDate}. 주 1회 제한으로 ${nextDate.toISOString().slice(0, 10)} 이후에 실행 가능합니다.`,
+      lastCrawl: lastCrawlDate,
+      nextAllowed: nextDate.toISOString().slice(0, 10),
+    };
+  }
+
+  return { allowed: true };
+}
+
+function runMusinsaCrawler() {
+  return new Promise((resolve, reject) => {
+    const check = canRunCrawler();
+    if (!check.allowed) {
+      resolve({ success: false, ...check });
+      return;
+    }
+
+    if (!fs.existsSync(CRAWLER_SCRIPT)) {
+      resolve({ success: false, reason: '크롤러 스크립트를 찾을 수 없습니다: ' + CRAWLER_SCRIPT });
+      return;
+    }
+
+    console.log('[Crawler] 무신사 랭킹 크롤러 실행 중...');
+
+    execFile('python', [CRAWLER_SCRIPT], {
+      cwd: CRAWLER_DIR,
+      timeout: 120000, // 2분 타임아웃
+    }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('[Crawler Error]', err.message);
+        resolve({ success: false, reason: `크롤러 실행 오류: ${err.message}`, stderr });
+        return;
+      }
+
+      console.log('[Crawler] 완료:', stdout.slice(-200));
+
+      // 데이터 리로드
+      const reloadResult = loadMusinsaData();
+      lastCrawlDate = new Date().toISOString().slice(0, 10);
+
+      // server/data/ 번들도 갱신
+      const bundleDest = path.join(__dirname, 'data', 'musinsa_ranking.json');
+      const srcData = path.join(CRAWLER_DIR, 'musinsa_ranking_data.json');
+      if (fs.existsSync(srcData)) {
+        try { fs.copyFileSync(srcData, bundleDest); } catch (e) { /* ignore */ }
+      }
+
+      resolve({
+        success: true,
+        date: lastCrawlDate,
+        productsLoaded: reloadResult.total,
+        output: stdout.slice(-500),
+      });
+    });
+  });
+}
+
 module.exports = {
   TREND_AGENT_TOOLS,
   loadMusinsaData,
@@ -312,4 +419,6 @@ module.exports = {
   getRankingSummary,
   getCategoryTrend,
   buildRisingKeywordsSQL,
+  runMusinsaCrawler,
+  canRunCrawler,
 };
