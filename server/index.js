@@ -8,6 +8,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { AGENTS, getAgent, getConversation, addMessage, clearConversation, clearAllConversations } = require('./agents');
 const { DATA_ANALYST_TOOLS, buildWeeklySummarySQL } = require('./tools');
 const { MARKET_AGENT_TOOLS } = require('./market-tools');
+const { PRODUCT_PLANNING_TOOLS, buildCategoryPerformanceSQL, buildTopSellingSQL } = require('./product-tools');
 const { TREND_AGENT_TOOLS, loadMusinsaData, loadTiktokData, loadGoogleTrends, queryRanking, getRankingSummary, getCategoryTrend, queryTiktokHashtags, getTiktokSummary, queryGoogleTrends, getGoogleTrendsSummary, buildRisingKeywordsSQL, runMusinsaCrawler, runTiktokCrawler } = require('./trend-tools');
 const { executeQuery, isConnected } = require('./snowflake');
 const { loadAll, queryProducts, getBrandSummary, compareBrands, getProductCount } = require('./competitors');
@@ -164,6 +165,28 @@ async function executeTool(toolName, toolInput) {
     return JSON.stringify(result, null, 2);
   }
 
+  // 박도현(Product Planning) 도구
+  if (toolName === 'query_product_db') {
+    console.log(`[Tool] query_product_db — ${toolInput.purpose}`);
+    console.log(`[Tool] SQL: ${toolInput.sql}`);
+    const result = await executeQuery(toolInput.sql);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'get_category_performance') {
+    const sql = buildCategoryPerformanceSQL(toolInput.weeks, toolInput.category);
+    console.log(`[Tool] get_category_performance — ${toolInput.weeks}주, ${toolInput.category || '전체'}`);
+    const result = await executeQuery(sql);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'get_top_selling_styles') {
+    const sql = buildTopSellingSQL(toolInput.limit, toolInput.gender, toolInput.category);
+    console.log(`[Tool] get_top_selling_styles — ${toolInput.limit || 20}개`);
+    const result = await executeQuery(sql);
+    return JSON.stringify(result, null, 2);
+  }
+
   // 이서연(Market Agent) 도구
   if (toolName === 'query_competitors') {
     console.log(`[Tool] query_competitors — filters:`, JSON.stringify(toolInput));
@@ -197,8 +220,8 @@ async function handleChat(ws, agentId, userMessage) {
 
   addMessage(agentId, 'user', userMessage);
 
-  // 이서연(1) + 김하늘(2) + 최재원(4) tool_use 활성화
-  const useTools = agentId === 1 || agentId === 2 || agentId === 4;
+  // 이서연(1) + 김하늘(2) + 박도현(3) + 최재원(4) tool_use 활성화
+  const useTools = agentId === 1 || agentId === 2 || agentId === 3 || agentId === 4;
 
   ws.send(JSON.stringify({ type: 'stream_start', agentId, agentName: agent.name }));
 
@@ -222,6 +245,8 @@ async function handleChat(ws, agentId, userMessage) {
         apiParams.tools = MARKET_AGENT_TOOLS;
       } else if (agentId === 2) {
         apiParams.tools = TREND_AGENT_TOOLS;
+      } else if (agentId === 3) {
+        apiParams.tools = PRODUCT_PLANNING_TOOLS;
       } else if (agentId === 4) {
         apiParams.tools = DATA_ANALYST_TOOLS;
       }
