@@ -1,0 +1,14 @@
+{
+  "name": "ai-agents-office",
+  "version": "1.0.0",
+  "description": "AI Agents Office — 2D simulation with Claude API chat",
+  "scripts": {
+    "start": "cd server && node index.js",
+    "install:server": "cd server && npm install",
+    "build": "cd server && npm install",
+    "bundle-data": "cd server && node bundle-data.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

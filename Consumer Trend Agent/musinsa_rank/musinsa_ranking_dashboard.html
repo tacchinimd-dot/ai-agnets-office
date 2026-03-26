@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>무신사 랭킹 Top 100 - 2026-03-24 14:50</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f5f5f5; color: #333; }
+
+.header {
+    background: #000; color: #fff; padding: 24px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; z-index: 100;
+}
+.header h1 { font-size: 22px; font-weight: 700; }
+.header h1 span { color: #ff4800; }
+.header-info { display: flex; gap: 16px; align-items: center; font-size: 13px; color: #aaa; }
+.header-info .badge {
+    background: #ff4800; color: #fff; padding: 4px 10px;
+    border-radius: 12px; font-weight: 600; font-size: 12px;
+}
+
+.controls {
+    background: #fff; padding: 16px 32px; border-bottom: 1px solid #e0e0e0;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+.controls input, .controls select {
+    padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 13px; outline: none;
+}
+.controls input:focus, .controls select:focus { border-color: #ff4800; }
+.controls input[type="text"] { width: 240px; }
+.controls button {
+    padding: 8px 16px; border: none; border-radius: 6px;
+    font-size: 13px; cursor: pointer; font-weight: 600;
+}
+.btn-export { background: #000; color: #fff; }
+.btn-export:hover { background: #333; }
+.btn-save { background: #ff4800; color: #fff; }
+.btn-save:hover { background: #e04000; }
+.btn-reset { background: #eee; color: #333; }
+.btn-reset:hover { background: #ddd; }
+
+.stats {
+    padding: 12px 32px; background: #fff; border-bottom: 1px solid #e0e0e0;
+    display: flex; gap: 24px; font-size: 13px; color: #666;
+}
+.stats .stat-item strong { color: #333; }
+
+.table-container {
+    padding: 16px 32px 60px; overflow-x: auto;
+}
+table {
+    width: 100%; border-collapse: collapse; background: #fff;
+    border-radius: 8px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+thead { background: #fafafa; }
+th {
+    padding: 12px 14px; text-align: left; font-size: 12px;
+    font-weight: 600; color: #888; text-transform: uppercase;
+    border-bottom: 2px solid #eee; white-space: nowrap;
+}
+td {
+    padding: 10px 14px; border-bottom: 1px solid #f0f0f0;
+    font-size: 13px; vertical-align: middle;
+}
+tr:hover { background: #fafafa; }
+
+.rank-cell {
+    font-weight: 800; font-size: 16px; text-align: center; width: 50px;
+}
+.rank-1 { color: #ff4800; }
+.rank-2 { color: #ff6b00; }
+.rank-3 { color: #ff9500; }
+
+.rising-badge {
+    display: inline-block; background: #fff3e0; color: #ff6d00;
+    padding: 2px 8px; border-radius: 10px; font-size: 11px;
+    font-weight: 700; margin-left: 6px;
+}
+
+.product-cell {
+    display: flex; align-items: center; gap: 12px; min-width: 300px;
+}
+.product-img {
+    width: 56px; height: 56px; border-radius: 6px;
+    object-fit: cover; background: #f0f0f0; flex-shrink: 0;
+}
+.product-info { display: flex; flex-direction: column; gap: 2px; }
+.product-brand { font-size: 11px; color: #888; font-weight: 600; }
+.product-name { font-size: 13px; font-weight: 500; line-height: 1.3; }
+
+.price-cell { white-space: nowrap; }
+.final-price { font-weight: 700; color: #000; }
+.original-price { font-size: 11px; color: #aaa; text-decoration: line-through; }
+.discount { color: #ff4800; font-weight: 700; font-size: 12px; margin-left: 4px; }
+
+.category-cell {
+    position: relative;
+}
+.category-tag {
+    display: inline-block; padding: 4px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    border: 1px solid transparent; transition: all 0.2s;
+}
+.category-tag:hover { border-color: #ff4800; }
+.category-tag.미분류 { background: #fff3e0; color: #e65100; border: 1px dashed #ffab40; }
+.category-tag.아우터 { background: #e3f2fd; color: #1565c0; }
+.category-tag.상의 { background: #e8f5e9; color: #2e7d32; }
+.category-tag.바지 { background: #f3e5f5; color: #6a1b9a; }
+.category-tag.신발 { background: #fce4ec; color: #c62828; }
+.category-tag.가방 { background: #fff8e1; color: #f57f17; }
+.category-tag.모자 { background: #e0f7fa; color: #00838f; }
+.category-tag.액세서리 { background: #f1f8e9; color: #558b2f; }
+.category-tag.원피스\/스커트 { background: #fce4ec; color: #ad1457; }
+.category-tag.속옷\/잠옷 { background: #efebe9; color: #4e342e; }
+.category-tag.뷰티 { background: #fce4ec; color: #d81b60; }
+.category-tag.식품\/보충제 { background: #e8eaf6; color: #283593; }
+
+.category-edit {
+    display: none; position: absolute; top: 100%; left: 0; z-index: 50;
+    background: #fff; border: 1px solid #ddd; border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 6px;
+    min-width: 140px;
+}
+.category-edit.active { display: block; }
+.category-edit button {
+    display: block; width: 100%; text-align: left;
+    padding: 6px 10px; border: none; background: none;
+    font-size: 12px; cursor: pointer; border-radius: 4px;
+}
+.category-edit button:hover { background: #f5f5f5; }
+.category-edit input {
+    width: 100%; padding: 6px 8px; border: 1px solid #ddd;
+    border-radius: 4px; font-size: 12px; margin-top: 4px;
+}
+
+.viewing { font-size: 11px; color: #999; }
+
+.footer {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #fff; border-top: 1px solid #e0e0e0;
+    padding: 8px 32px; text-align: center; font-size: 11px; color: #aaa;
+}
+
+.toast {
+    position: fixed; bottom: 60px; right: 32px;
+    background: #333; color: #fff; padding: 12px 20px;
+    border-radius: 8px; font-size: 13px; opacity: 0;
+    transition: opacity 0.3s; z-index: 200;
+}
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1><span>MUSINSA</span> 랭킹 Top 100</h1>
+    <div class="header-info">
+        <span>수집일시: 2026-03-24 14:50</span>
+        <span class="badge" id="totalCount">0개</span>
+    </div>
+</div>
+
+<div class="controls">
+    <input type="text" id="searchInput" placeholder="브랜드 / 상품명 검색...">
+    <select id="categoryFilter">
+        <option value="">전체 카테고리</option>
+    </select>
+    <select id="risingFilter">
+        <option value="">전체</option>
+        <option value="rising">급상승만</option>
+        <option value="unclassified">미분류만</option>
+    </select>
+    <button class="btn-save" onclick="saveEdits()">편집 저장</button>
+    <button class="btn-export" onclick="exportCSV()">CSV 내보내기</button>
+    <button class="btn-reset" onclick="resetFilters()">필터 초기화</button>
+</div>
+
+<div class="stats" id="statsBar"></div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>순위</th>
+                <th>상품</th>
+                <th>카테고리</th>
+                <th>판매가</th>
+                <th>할인</th>
+                <th>총 조회수</th>
+                <th>누적판매</th>
+                <th>전환율</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<div class="footer">무신사 랭킹 크롤러 &middot; 데이터 수집일: 2026-03-24 14:50</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const PRODUCTS = [
+  {
+    "rank": 1,
+    "id": "6109105",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 혼 아플리케 사이드 지퍼 후드집업 (화이트)",
+    "finalPrice": 151240,
+    "originalPrice": 199000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109105/6109105_17742510213234_500.jpg",
+    "additionalInfo": "993명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 744,
+    "pageViewTotal": 15121
+  },
+  {
+    "rank": 2,
+    "id": "6109106",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 혼 아플리케 사이드 지퍼 후드집업 (차콜)",
+    "finalPrice": 151240,
+    "originalPrice": 199000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109106/6109106_17739068454342_500.jpg",
+    "additionalInfo": "531명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 605,
+    "pageViewTotal": 14190
+  },
+  {
+    "rank": 3,
+    "id": "6109113",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 프론트 빅포켓 데님팬츠",
+    "finalPrice": 158840,
+    "originalPrice": 209000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109113/6109113_17739046353253_500.jpg",
+    "additionalInfo": "489명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 479,
+    "pageViewTotal": 8667
+  },
+  {
+    "rank": 4,
+    "id": "6109110",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 사이드 더블 지퍼 카고 팬츠 (라이트 그레이)",
+    "finalPrice": 166440,
+    "originalPrice": 219000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109110/6109110_17739070340096_500.jpg",
+    "additionalInfo": "239명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 294,
+    "pageViewTotal": 7888
+  },
+  {
+    "rank": 5,
+    "id": "6109111",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 코튼 와이드 카고 팬츠 (차콜)",
+    "finalPrice": 158840,
+    "originalPrice": 209000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109111/6109111_17739058293460_500.jpg",
+    "additionalInfo": "264명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 266,
+    "pageViewTotal": 6607
+  },
+  {
+    "rank": 6,
+    "id": "6034768",
+    "brandName": "아디다스",
+    "productName": "데님 파이어버드 트랙탑 - 블랙 / KD1516",
+    "finalPrice": 143100,
+    "originalPrice": 159000,
+    "discountRatio": 10,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260220/6034768/6034768_17715673987009_500.jpg",
+    "additionalInfo": "1.6천명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 1158,
+    "pageViewTotal": 88475
+  },
+  {
+    "rank": 7,
+    "id": "5994874",
+    "brandName": "아디다스",
+    "productName": "파이어버드 우븐 트랙탑 - 나이트인디고 / KE1365",
+    "finalPrice": 103200,
+    "originalPrice": 129000,
+    "discountRatio": 20,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260209/5994874/5994874_17706911493459_500.jpg",
+    "additionalInfo": "152명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 1079,
+    "pageViewTotal": 21886
+  },
+  {
+    "rank": 8,
+    "id": "6109112",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 코튼 와이드 카고 팬츠 (브라운)",
+    "finalPrice": 158840,
+    "originalPrice": 209000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109112/6109112_17739054378379_500.jpg",
+    "additionalInfo": "132명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 184,
+    "pageViewTotal": 4390
+  },
+  {
+    "rank": 9,
+    "id": "6083789",
+    "brandName": "에스엠지홀딩스",
+    "productName": "[CLAMP展 -SELECTION-] 스페셜 KV 아크릴 키링 컴플리트 + 전시 무료입장 세트",
+    "finalPrice": 52000,
+    "originalPrice": 60465,
+    "discountRatio": 14,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260305/6083789/6083789_17739120190391_500.jpg",
+    "additionalInfo": "770명이 보는 중",
+    "isRising": false,
+    "category": "액세서리",
+    "purchaseTotal": 878,
+    "pageViewTotal": 18065
+  },
+  {
+    "rank": 10,
+    "id": "6109103",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 원숄더 아일렛 롱슬리브 (레몬)",
+    "finalPrice": 60040,
+    "originalPrice": 79000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109103/6109103_17739054465701_500.jpg",
+    "additionalInfo": "485명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 364,
+    "pageViewTotal": 6659
+  },
+  {
+    "rank": 11,
+    "id": "6109108",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 사이드 더블 지퍼 카고 팬츠 (라이트 베이지)",
+    "finalPrice": 166440,
+    "originalPrice": 219000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109108/6109108_17739065332758_500.jpg",
+    "additionalInfo": "180명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 122,
+    "pageViewTotal": 4303
+  },
+  {
+    "rank": 12,
+    "id": "6109099",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 투웨이 레이어드 롱슬리브 (3 Color)",
+    "finalPrice": 74480,
+    "originalPrice": 98000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109099/6109099_17739070140026_500.jpg",
+    "additionalInfo": "231명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 234,
+    "pageViewTotal": 5786
+  },
+  {
+    "rank": 13,
+    "id": "6109102",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 원숄더 아일렛 롱슬리브 (그레이)",
+    "finalPrice": 60040,
+    "originalPrice": 79000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109102/6109102_17739069265005_500.jpg",
+    "additionalInfo": "300명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 258,
+    "pageViewTotal": 6314
+  },
+  {
+    "rank": 14,
+    "id": "6109097",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 절개 아일렛 티셔츠 (차콜)",
+    "finalPrice": 52440,
+    "originalPrice": 69000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109097/6109097_17739046446151_500.jpg",
+    "additionalInfo": "177명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 256,
+    "pageViewTotal": 4398
+  },
+  {
+    "rank": 15,
+    "id": "5907641",
+    "brandName": "아디다스",
+    "productName": "파이어버드 트랙탑 - 블랙 / KD8312",
+    "finalPrice": 82990,
+    "originalPrice": 118557,
+    "discountRatio": 30,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260119/5907641/5907641_17688014871919_500.jpg",
+    "additionalInfo": "411명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 2339,
+    "pageViewTotal": 54514
+  },
+  {
+    "rank": 16,
+    "id": "6109104",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 원숄더 아일렛 롱슬리브 (네이비)",
+    "finalPrice": 60040,
+    "originalPrice": 79000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109104/6109104_17739055427799_500.jpg",
+    "additionalInfo": "291명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 185,
+    "pageViewTotal": 5139
+  },
+  {
+    "rank": 17,
+    "id": "6131128",
+    "brandName": "나이키",
+    "productName": "대한민국 2026 스타디움 홈 드라이 핏 축구 레플리카 저지 M - 글로벌 레드:블랙:화이트:클럽 골드 / IB5328-679",
+    "finalPrice": 135000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260313/6131128/6131128_17739840174750_500.jpg",
+    "additionalInfo": "234명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 91,
+    "pageViewTotal": 3491
+  },
+  {
+    "rank": 18,
+    "id": "6147924",
+    "brandName": "쿨시스",
+    "productName": "CS CLASSIC TRENCH JACKET-026 (BLACK)",
+    "finalPrice": 138990,
+    "originalPrice": 207448,
+    "discountRatio": 33,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260317/6147924/6147924_17739311318163_500.jpg",
+    "additionalInfo": "",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 0,
+    "pageViewTotal": 1236
+  },
+  {
+    "rank": 19,
+    "id": "5872106",
+    "brandName": "마인드브릿지",
+    "productName": "스웨이드 미니멀 집업 블루종 - 2color",
+    "finalPrice": 121760,
+    "originalPrice": 179059,
+    "discountRatio": 32,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260106/5872106/5872106_17706875667904_500.jpg",
+    "additionalInfo": "392명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 1072,
+    "pageViewTotal": 54947
+  },
+  {
+    "rank": 20,
+    "id": "6109095",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 절개 아일렛 티셔츠 (카키)",
+    "finalPrice": 52440,
+    "originalPrice": 69000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109095/6109095_17739068906728_500.jpg",
+    "additionalInfo": "164명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 117,
+    "pageViewTotal": 4688
+  },
+  {
+    "rank": 21,
+    "id": "6147965",
+    "brandName": "쿨시스",
+    "productName": "CS RED LABEL WIDE JEANS-067",
+    "finalPrice": 79140,
+    "originalPrice": 118119,
+    "discountRatio": 33,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260317/6147965/6147965_17738439432660_500.jpg",
+    "additionalInfo": "50명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 75,
+    "pageViewTotal": 2048
+  },
+  {
+    "rank": 22,
+    "id": "6110832",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 로고 베이직 슬리브리스 (스트라이프 그레이)",
+    "finalPrice": 29640,
+    "originalPrice": 39000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6110832/6110832_17739042207931_500.jpg",
+    "additionalInfo": "216명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 187,
+    "pageViewTotal": 2776
+  },
+  {
+    "rank": 23,
+    "id": "5864297",
+    "brandName": "디미트리블랙",
+    "productName": "[10주년기획] © 모두의 커브드 치노 팬츠_4 COLOR",
+    "finalPrice": 34900,
+    "originalPrice": 49857,
+    "discountRatio": 30,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251231/5864297/5864297_17682016946677_500.jpg",
+    "additionalInfo": "1.4천명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 10722,
+    "pageViewTotal": 155246
+  },
+  {
+    "rank": 24,
+    "id": "6049553",
+    "brandName": "브랜디드",
+    "productName": "UNIFORM CARGO PANTS [KHAKI]",
+    "finalPrice": 88200,
+    "originalPrice": 98000,
+    "discountRatio": 10,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260224/6049553/6049553_17721699868207_500.jpg",
+    "additionalInfo": "286명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 308,
+    "pageViewTotal": 18349
+  },
+  {
+    "rank": 25,
+    "id": "5700644",
+    "brandName": "카하라",
+    "productName": "누보 3혼 블랙",
+    "finalPrice": 218000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251107/5700644/5700644_17696733656241_500.png",
+    "additionalInfo": "250명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 1569,
+    "pageViewTotal": 47391
+  },
+  {
+    "rank": 26,
+    "id": "6023995",
+    "brandName": "미쏘",
+    "productName": "도트 시스루 레이어드 긴팔 티셔츠_MIWLWG304A",
+    "finalPrice": 31880,
+    "originalPrice": 39850,
+    "discountRatio": 20,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260213/6023995/6023995_17733301665746_500.png",
+    "additionalInfo": "327명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 546,
+    "pageViewTotal": 28572
+  },
+  {
+    "rank": 27,
+    "id": "5899195",
+    "brandName": "드로우핏",
+    "productName": "이글 해링턴 워싱 자켓 [LIGHT GREY]",
+    "finalPrice": 139200,
+    "originalPrice": 174000,
+    "discountRatio": 20,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260115/5899195/5899195_17720720522585_500.jpg",
+    "additionalInfo": "289명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 459,
+    "pageViewTotal": 28283
+  },
+  {
+    "rank": 28,
+    "id": "5943431",
+    "brandName": "아디다스",
+    "productName": "와플 클래식 트랙탑 - 원더화이트 / KQ6864",
+    "finalPrice": 129000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260127/5943431/5943431_17739897524096_500.jpg",
+    "additionalInfo": "337명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 340,
+    "pageViewTotal": 21682
+  },
+  {
+    "rank": 29,
+    "id": "5866769",
+    "brandName": "트릴리온",
+    "productName": "에센셜 옥스포드 크롭 스트라이프 셔츠_3color",
+    "finalPrice": 34900,
+    "originalPrice": 44744,
+    "discountRatio": 22,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260102/5866769/5866769_17678641134812_500.jpg",
+    "additionalInfo": "275명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 3562,
+    "pageViewTotal": 247345
+  },
+  {
+    "rank": 30,
+    "id": "5894703",
+    "brandName": "나이키",
+    "productName": "ACG 판타즈마 스톰 핏 ADV 재킷 M - 블랙:서밋 화이트 / IF1144-010",
+    "finalPrice": 219000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260114/5894703/5894703_17684554749319_500.jpg",
+    "additionalInfo": "258명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 408,
+    "pageViewTotal": 31076
+  },
+  {
+    "rank": 31,
+    "id": "6035174",
+    "brandName": "살로몬",
+    "productName": "모디세이 에어로_LC3070900",
+    "finalPrice": 240000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260220/6035174/6035174_17721829176169_500.jpg",
+    "additionalInfo": "237명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 459,
+    "pageViewTotal": 28247
+  },
+  {
+    "rank": 32,
+    "id": "6004404",
+    "brandName": "에스피오나지",
+    "productName": "Overdyed Check 2 Pocket Shirt Black",
+    "finalPrice": 88740,
+    "originalPrice": 116763,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260210/6004404/6004404_17707055219417_500.jpg",
+    "additionalInfo": "89명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 115,
+    "pageViewTotal": 4233
+  },
+  {
+    "rank": 33,
+    "id": "5864289",
+    "brandName": "디미트리블랙",
+    "productName": "ASI 포시즌 에센셜 후드 집업_데님 빈티지 블랙",
+    "finalPrice": 43900,
+    "originalPrice": 65522,
+    "discountRatio": 33,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251231/5864289/5864289_17679297909685_500.jpg",
+    "additionalInfo": "1.1천명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 2055,
+    "pageViewTotal": 129398
+  },
+  {
+    "rank": 34,
+    "id": "5870526",
+    "brandName": "아디다스",
+    "productName": "파이어버드 클래식 트랙탑 - 블랙:화이트 / KD7981",
+    "finalPrice": 68400,
+    "originalPrice": 108571,
+    "discountRatio": 37,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260106/5870526/5870526_17677548040128_500.jpg",
+    "additionalInfo": "177명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 997,
+    "pageViewTotal": 24891
+  },
+  {
+    "rank": 35,
+    "id": "5682006",
+    "brandName": "텍스",
+    "productName": "TX304 커브드 배기 벌룬 데님 (블랙)",
+    "finalPrice": 46000,
+    "originalPrice": 85185,
+    "discountRatio": 46,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251104/5682006/5682006_17627537331979_500.jpg",
+    "additionalInfo": "412명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 8918,
+    "pageViewTotal": 85742
+  },
+  {
+    "rank": 36,
+    "id": "5755269",
+    "brandName": "무신사 스탠다드",
+    "productName": "US ARMY 탱커 재킷 [블랙]",
+    "finalPrice": 116990,
+    "originalPrice": 129989,
+    "discountRatio": 10,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251120/5755269/5755269_17737016012155_500.jpg",
+    "additionalInfo": "313명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 287,
+    "pageViewTotal": 25226
+  },
+  {
+    "rank": 37,
+    "id": "5614815",
+    "brandName": "데이",
+    "productName": "크롭 스웨이드 자켓 (2 STYLE)",
+    "finalPrice": 47020,
+    "originalPrice": 69147,
+    "discountRatio": 32,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251020/5614815/5614815_17694826603380_500.jpg",
+    "additionalInfo": "1.1천명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 4718,
+    "pageViewTotal": 98728
+  },
+  {
+    "rank": 38,
+    "id": "5899194",
+    "brandName": "드로우핏",
+    "productName": "이글 해링턴 워싱 자켓 [BLACK]",
+    "finalPrice": 139200,
+    "originalPrice": 174000,
+    "discountRatio": 20,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260115/5899194/5899194_17697382730751_500.jpg",
+    "additionalInfo": "402명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 634,
+    "pageViewTotal": 48055
+  },
+  {
+    "rank": 39,
+    "id": "5945001",
+    "brandName": "비긴202",
+    "productName": "엣지 워크 라보 팬츠 [페이드 블랙]",
+    "finalPrice": 107280,
+    "originalPrice": 149000,
+    "discountRatio": 28,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260127/5945001/5945001_17696701269304_500.jpg",
+    "additionalInfo": "2.1천명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 568,
+    "pageViewTotal": 21040
+  },
+  {
+    "rank": 40,
+    "id": "5901521",
+    "brandName": "우포스",
+    "productName": "[OOriginal] 블랙 남여공용 쪼리",
+    "finalPrice": 51750,
+    "originalPrice": 69000,
+    "discountRatio": 25,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260116/5901521/5901521_17685230371684_500.jpg",
+    "additionalInfo": "314명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 1253,
+    "pageViewTotal": 12521
+  },
+  {
+    "rank": 41,
+    "id": "6110833",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 로고 베이직 슬리브리스 (민트)",
+    "finalPrice": 29640,
+    "originalPrice": 39000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6110833/6110833_17739035405826_500.jpg",
+    "additionalInfo": "102명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 111,
+    "pageViewTotal": 1911
+  },
+  {
+    "rank": 42,
+    "id": "6067017",
+    "brandName": "노스페이스",
+    "productName": "NJ3BS13A 컴팩트 EX 자켓 BLACK",
+    "finalPrice": 135150,
+    "originalPrice": 159000,
+    "discountRatio": 15,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260227/6067017/6067017_17721771182368_500.jpg",
+    "additionalInfo": "282명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 298,
+    "pageViewTotal": 21467
+  },
+  {
+    "rank": 43,
+    "id": "6104960",
+    "brandName": "무신사 스탠다드",
+    "productName": "레귤러 크롭 티셔츠 (8 colors)",
+    "finalPrice": 15900,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6104960/6104960_17733835233502_500.jpg",
+    "additionalInfo": "741명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 3048,
+    "pageViewTotal": 26576
+  },
+  {
+    "rank": 44,
+    "id": "6100901",
+    "brandName": "닉켈하우스",
+    "productName": "닉켈 26 동키 후드집업",
+    "finalPrice": 109000,
+    "originalPrice": 149315,
+    "discountRatio": 27,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260309/6100901/6100901_17730403884837_500.jpg",
+    "additionalInfo": "608명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 902,
+    "pageViewTotal": 91180
+  },
+  {
+    "rank": 45,
+    "id": "5986649",
+    "brandName": "킨치",
+    "productName": "[킨치x페르커] RODY / BLACK",
+    "finalPrice": 198140,
+    "originalPrice": 257325,
+    "discountRatio": 23,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260205/5986649/5986649_17726202200896_500.jpg",
+    "additionalInfo": "386명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 58,
+    "pageViewTotal": 7664
+  },
+  {
+    "rank": 46,
+    "id": "6109092",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 버튼 니트 헤어밴드 (차콜)",
+    "finalPrice": 28880,
+    "originalPrice": 38000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109092/6109092_17739035965936_500.jpg",
+    "additionalInfo": "95명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 104,
+    "pageViewTotal": 2048
+  },
+  {
+    "rank": 47,
+    "id": "6004395",
+    "brandName": "에스피오나지",
+    "productName": "USAF HBT Mechanic Pants Dark Beige",
+    "finalPrice": 100440,
+    "originalPrice": 124000,
+    "discountRatio": 19,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260210/6004395/6004395_17707053789120_500.jpg",
+    "additionalInfo": "117명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 91,
+    "pageViewTotal": 5249
+  },
+  {
+    "rank": 48,
+    "id": "5873654",
+    "brandName": "파브레가",
+    "productName": "컨투어 커브드 치노 팬츠 (웜 그레이)",
+    "finalPrice": 97200,
+    "originalPrice": 108000,
+    "discountRatio": 10,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260107/5873654/5873654_17702903553603_500.jpg",
+    "additionalInfo": "93명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 257,
+    "pageViewTotal": 7941
+  },
+  {
+    "rank": 49,
+    "id": "5934674",
+    "brandName": "크랭크",
+    "productName": "하이넥 벨티드 블루종 자켓_베이지",
+    "finalPrice": 181640,
+    "originalPrice": 259486,
+    "discountRatio": 30,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260126/5934674/5934674_17714158184701_500.jpg",
+    "additionalInfo": "161명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 84,
+    "pageViewTotal": 15326
+  },
+  {
+    "rank": 50,
+    "id": "5874446",
+    "brandName": "아디다스",
+    "productName": "파이어버드 루즈 트랙탑 - 블랙:화이트 / KD7983",
+    "finalPrice": 90400,
+    "originalPrice": 118947,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260107/5874446/5874446_17721825358157_500.jpg",
+    "additionalInfo": "438명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 782,
+    "pageViewTotal": 82044
+  },
+  {
+    "rank": 51,
+    "id": "6147941",
+    "brandName": "쿨시스",
+    "productName": "CS CLASSIC TRENCH JACKET-026 (BEIGE)",
+    "finalPrice": 138990,
+    "originalPrice": 207448,
+    "discountRatio": 33,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260317/6147941/6147941_17738457437999_500.jpg",
+    "additionalInfo": "11명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 0,
+    "pageViewTotal": 913
+  },
+  {
+    "rank": 52,
+    "id": "5943429",
+    "brandName": "아디다스",
+    "productName": "와플 클래식 트랙탑 - 블랙 / KQ6863",
+    "finalPrice": 129000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260127/5943429/5943429_17739899100314_500.jpg",
+    "additionalInfo": "119명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 258,
+    "pageViewTotal": 9149
+  },
+  {
+    "rank": 53,
+    "id": "6104753",
+    "brandName": "뉴발란스",
+    "productName": "NBRJGS440S / Breeze / SD2202SG2 (SILVER)",
+    "finalPrice": 129000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6104753/6104753_17731170595351_500.jpg",
+    "additionalInfo": "553명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 326,
+    "pageViewTotal": 26655
+  },
+  {
+    "rank": 54,
+    "id": "6110837",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 로고 베이직 슬리브리스 (그레이)",
+    "finalPrice": 29640,
+    "originalPrice": 39000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6110837/6110837_17739024962033_500.jpg",
+    "additionalInfo": "114명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 81,
+    "pageViewTotal": 2883
+  },
+  {
+    "rank": 55,
+    "id": "6109093",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 로고 드레이프 비니 (차콜)",
+    "finalPrice": 34200,
+    "originalPrice": 45000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109093/6109093_17739069596937_500.jpg",
+    "additionalInfo": "99명이 보는 중",
+    "isRising": false,
+    "category": "모자",
+    "purchaseTotal": 74,
+    "pageViewTotal": 3182
+  },
+  {
+    "rank": 56,
+    "id": "5662151",
+    "brandName": "무신사 스탠다드",
+    "productName": "워셔블 수피마 코튼 라운드 넥 가디건 [블랙]",
+    "finalPrice": 59900,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251029/5662151/5662151_17682942689419_500.jpg",
+    "additionalInfo": "178명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 1416,
+    "pageViewTotal": 31335
+  },
+  {
+    "rank": 57,
+    "id": "5947136",
+    "brandName": "드로우핏",
+    "productName": "커브드 워싱 퍼티그 팬츠 [KHAKI BEIGE]",
+    "finalPrice": 59400,
+    "originalPrice": 66000,
+    "discountRatio": 10,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260128/5947136/5947136_17696673440930_500.jpg",
+    "additionalInfo": "119명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 268,
+    "pageViewTotal": 8920
+  },
+  {
+    "rank": 58,
+    "id": "6046584",
+    "brandName": "아식스",
+    "productName": "GEL-NYC 2.0 - 그레이블:크림 / 1203A895-020",
+    "finalPrice": 179000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260224/6046584/6046584_17719791472455_500.jpg",
+    "additionalInfo": "339명이 보는 중",
+    "isRising": false,
+    "category": "뷰티",
+    "purchaseTotal": 180,
+    "pageViewTotal": 20801
+  },
+  {
+    "rank": 59,
+    "id": "5892440",
+    "brandName": "뉴발란스",
+    "productName": "NBNAG21303 / UNI 740 Shifted 우븐 자켓 (GRAY PINK)",
+    "finalPrice": 179000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260114/5892440/5892440_17709596110984_500.jpg",
+    "additionalInfo": "193명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 335,
+    "pageViewTotal": 29901
+  },
+  {
+    "rank": 60,
+    "id": "5406310",
+    "brandName": "셀렉스",
+    "productName": "프로핏 WPI 드링크 코코넛 330ml x 12개",
+    "finalPrice": 19530,
+    "originalPrice": 38294,
+    "discountRatio": 49,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20250905/5406310/5406310_17726747014918_500.jpg",
+    "additionalInfo": "24명이 보는 중",
+    "isRising": false,
+    "category": "식품/보충제",
+    "purchaseTotal": 5757,
+    "pageViewTotal": 14727
+  },
+  {
+    "rank": 61,
+    "id": "5861186",
+    "brandName": "나이키",
+    "productName": "에어 맥스 95 빅 버블 W - 화이트:에메랄드 그린:울프 그레이:코트 퍼플 / HJ5996-100",
+    "finalPrice": 229000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251230/5861186/5861186_17676697549751_500.jpg",
+    "additionalInfo": "253명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 597,
+    "pageViewTotal": 42782
+  },
+  {
+    "rank": 62,
+    "id": "5811545",
+    "brandName": "젝시믹스",
+    "productName": "[2PACK] V업 3D 플러스 레깅스 XP9156T",
+    "finalPrice": 44800,
+    "originalPrice": 78596,
+    "discountRatio": 43,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251208/5811545/5811545_17688058340524_500.jpg",
+    "additionalInfo": "99명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 3910,
+    "pageViewTotal": 25113
+  },
+  {
+    "rank": 63,
+    "id": "5874827",
+    "brandName": "파브레가",
+    "productName": "더치 빈티지 블루종 자켓 (워시드 브라운)",
+    "finalPrice": 196200,
+    "originalPrice": 218000,
+    "discountRatio": 10,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260107/5874827/5874827_17699992928288_500.jpg",
+    "additionalInfo": "173명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 130,
+    "pageViewTotal": 9942
+  },
+  {
+    "rank": 64,
+    "id": "6063418",
+    "brandName": "노스페이스",
+    "productName": "NJ3BS13C 컴팩트 EX 자켓 SMOKE GRAY",
+    "finalPrice": 135150,
+    "originalPrice": 159000,
+    "discountRatio": 15,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260227/6063418/6063418_17721521979562_500.jpg",
+    "additionalInfo": "95명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 220,
+    "pageViewTotal": 9454
+  },
+  {
+    "rank": 65,
+    "id": "5885530",
+    "brandName": "하 아카이브",
+    "productName": "[With 해수] 베를리너 레더 백 (소가죽 블랙)",
+    "finalPrice": 112890,
+    "originalPrice": 159000,
+    "discountRatio": 29,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260112/5885530/5885530_17702998141400_500.jpg",
+    "additionalInfo": "117명이 보는 중",
+    "isRising": false,
+    "category": "가방",
+    "purchaseTotal": 1146,
+    "pageViewTotal": 34878
+  },
+  {
+    "rank": 66,
+    "id": "6030673",
+    "brandName": "노스페이스",
+    "productName": "NJ3BS02J 화이트라벨 올레마 플렉스 자켓 BLACK",
+    "finalPrice": 169100,
+    "originalPrice": 178000,
+    "discountRatio": 5,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260219/6030673/6030673_17714828414470_500.jpg",
+    "additionalInfo": "215명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 185,
+    "pageViewTotal": 21344
+  },
+  {
+    "rank": 67,
+    "id": "6079934",
+    "brandName": "뉴발란스",
+    "productName": "NBPDGS111B / U7407XT (BLACK)",
+    "finalPrice": 149000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260304/6079934/6079934_17737128035823_500.jpg",
+    "additionalInfo": "279명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 171,
+    "pageViewTotal": 15702
+  },
+  {
+    "rank": 68,
+    "id": "5897287",
+    "brandName": "미쏘",
+    "productName": "바이커 자켓_MIWJLG311G",
+    "finalPrice": 97010,
+    "originalPrice": 129347,
+    "discountRatio": 25,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260115/5897287/5897287_17733294000113_500.png",
+    "additionalInfo": "143명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 510,
+    "pageViewTotal": 31568
+  },
+  {
+    "rank": 69,
+    "id": "5864299",
+    "brandName": "디미트리블랙",
+    "productName": "[10주년기획] © 모두의 셀비지 데님 팬츠_4 COLOR",
+    "finalPrice": 43900,
+    "originalPrice": 66515,
+    "discountRatio": 34,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251231/5864299/5864299_17679353553807_500.png",
+    "additionalInfo": "864명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 6531,
+    "pageViewTotal": 151373
+  },
+  {
+    "rank": 70,
+    "id": "5907439",
+    "brandName": "스탠드오일",
+    "productName": "Breezy Bag Mini · 브리지백 미니 / 미스티 화이트",
+    "finalPrice": 122550,
+    "originalPrice": 129000,
+    "discountRatio": 5,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260119/5907439/5907439_17730472212192_500.jpg",
+    "additionalInfo": "328명이 보는 중",
+    "isRising": false,
+    "category": "가방",
+    "purchaseTotal": 275,
+    "pageViewTotal": 15930
+  },
+  {
+    "rank": 71,
+    "id": "6147933",
+    "brandName": "쿨시스",
+    "productName": "CS PANEL WAIST JACKET-027",
+    "finalPrice": 105740,
+    "originalPrice": 157821,
+    "discountRatio": 33,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260317/6147933/6147933_17739956630733_500.jpg",
+    "additionalInfo": "11명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 0,
+    "pageViewTotal": 646
+  },
+  {
+    "rank": 72,
+    "id": "5966294",
+    "brandName": "런던다다",
+    "productName": "Oversized High-Neck Cotton Blouson, CLOUD",
+    "finalPrice": 156240,
+    "originalPrice": 248000,
+    "discountRatio": 37,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260202/5966294/5966294_17699989124912_500.jpg",
+    "additionalInfo": "155명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 106,
+    "pageViewTotal": 14040
+  },
+  {
+    "rank": 73,
+    "id": "5688003",
+    "brandName": "제로",
+    "productName": "풀 집 핑거 홀 스웨트 셔츠 [블랙]",
+    "finalPrice": 39000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251105/5688003/5688003_17627599204861_500.jpg",
+    "additionalInfo": "211명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 3251,
+    "pageViewTotal": 64232
+  },
+  {
+    "rank": 74,
+    "id": "5802209",
+    "brandName": "오프메이드",
+    "productName": "[기모추가] 사이드핀턱 와이드 스웨트팬츠 핀턱 트레이닝바지",
+    "finalPrice": 22680,
+    "originalPrice": 28000,
+    "discountRatio": 19,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251203/5802209/5802209_17647571154103_500.jpg",
+    "additionalInfo": "293명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 8771,
+    "pageViewTotal": 68637
+  },
+  {
+    "rank": 75,
+    "id": "5529533",
+    "brandName": "놈브레",
+    "productName": "뒷밴딩 무지 워싱 와이드 데님 팬츠[인디고블루]",
+    "finalPrice": 28030,
+    "originalPrice": 43797,
+    "discountRatio": 36,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20250925/5529533/5529533_17618189884226_500.jpg",
+    "additionalInfo": "373명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 6123,
+    "pageViewTotal": 58348
+  },
+  {
+    "rank": 76,
+    "id": "5912497",
+    "brandName": "데프가먼츠",
+    "productName": "(DEFG X US) CHECK WIND JACKET [2COLOR]",
+    "finalPrice": 72960,
+    "originalPrice": 128000,
+    "discountRatio": 43,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260120/5912497/5912497_17737336228771_500.jpg",
+    "additionalInfo": "540명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 246,
+    "pageViewTotal": 22449
+  },
+  {
+    "rank": 77,
+    "id": "5987818",
+    "brandName": "아디다스",
+    "productName": "스탠 스미스 LO 발레 JQ6939",
+    "finalPrice": 139000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260205/5987818/5987818_17702816576661_500.jpg",
+    "additionalInfo": "277명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 428,
+    "pageViewTotal": 27717
+  },
+  {
+    "rank": 78,
+    "id": "5899492",
+    "brandName": "드로우핏",
+    "productName": "로우 스모크 데님 트러커 자켓 [MIDNIGHT BLUE]",
+    "finalPrice": 99200,
+    "originalPrice": 124000,
+    "discountRatio": 20,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260115/5899492/5899492_17697381119118_500.jpg",
+    "additionalInfo": "135명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 499,
+    "pageViewTotal": 22778
+  },
+  {
+    "rank": 79,
+    "id": "6084669",
+    "brandName": "그루브라임",
+    "productName": "NYC LOCATION T-SHIRT (23COLOR) (LRAMCTR702P)",
+    "finalPrice": 19900,
+    "originalPrice": 28841,
+    "discountRatio": 31,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260305/6084669/6084669_17726862036016_500.jpg",
+    "additionalInfo": "130명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 573,
+    "pageViewTotal": 4836
+  },
+  {
+    "rank": 80,
+    "id": "6109094",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 로고 드레이프 비니 (블랙)",
+    "finalPrice": 34200,
+    "originalPrice": 45000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109094/6109094_17739040743136_500.jpg",
+    "additionalInfo": "62명이 보는 중",
+    "isRising": false,
+    "category": "모자",
+    "purchaseTotal": 56,
+    "pageViewTotal": 2229
+  },
+  {
+    "rank": 81,
+    "id": "6078643",
+    "brandName": "무신사 스탠다드",
+    "productName": "커브드 데님 팬츠 (4 colors)",
+    "finalPrice": 49900,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260304/6078643/6078643_17731093908035_500.jpg",
+    "additionalInfo": "458명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 1589,
+    "pageViewTotal": 49208
+  },
+  {
+    "rank": 82,
+    "id": "6061370",
+    "brandName": "아수라",
+    "productName": "AUTHENTIC TRENCH JACKET (BEIGE)",
+    "finalPrice": 169290,
+    "originalPrice": 199165,
+    "discountRatio": 15,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260226/6061370/6061370_17721078966179_500.jpg",
+    "additionalInfo": "163명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 173,
+    "pageViewTotal": 21123
+  },
+  {
+    "rank": 83,
+    "id": "5898780",
+    "brandName": "수아레",
+    "productName": "[삭형 리뉴얼] 워셔블 크롭 하찌 라운드 니트 가디건 - 6 COLOR",
+    "finalPrice": 39900,
+    "originalPrice": 58676,
+    "discountRatio": 32,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260115/5898780/5898780_17694094409164_500.jpg",
+    "additionalInfo": "682명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 6204,
+    "pageViewTotal": 79891
+  },
+  {
+    "rank": 84,
+    "id": "6079930",
+    "brandName": "뉴발란스",
+    "productName": "NBPDGS111G / U7408PL (GRAY)",
+    "finalPrice": 149000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260304/6079930/6079930_17737128588471_500.jpg",
+    "additionalInfo": "346명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 118,
+    "pageViewTotal": 15742
+  },
+  {
+    "rank": 85,
+    "id": "6009404",
+    "brandName": "아디다스",
+    "productName": "핸드볼 스페지알 - 얼스스트라타:원더화이트 / KK1153",
+    "finalPrice": 111750,
+    "originalPrice": 149000,
+    "discountRatio": 25,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260211/6009404/6009404_17708564378205_500.jpg",
+    "additionalInfo": "83명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 165,
+    "pageViewTotal": 13689
+  },
+  {
+    "rank": 86,
+    "id": "5858524",
+    "brandName": "테이크핏",
+    "productName": "테이크핏 맥스24G 초코맛 250mL x 24개",
+    "finalPrice": 27200,
+    "originalPrice": 57872,
+    "discountRatio": 53,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251229/5858524/5858524_17681740571477_500.jpg",
+    "additionalInfo": "148명이 보는 중",
+    "isRising": false,
+    "category": "식품/보충제",
+    "purchaseTotal": 5949,
+    "pageViewTotal": 28370
+  },
+  {
+    "rank": 87,
+    "id": "5874823",
+    "brandName": "파브레가",
+    "productName": "더치 빈티지 블루종 자켓 (워시드 블랙)",
+    "finalPrice": 196200,
+    "originalPrice": 218000,
+    "discountRatio": 10,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260107/5874823/5874823_17727735218663_500.jpg",
+    "additionalInfo": "53명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 115,
+    "pageViewTotal": 10710
+  },
+  {
+    "rank": 88,
+    "id": "6057479",
+    "brandName": "스파오",
+    "productName": "[UV차단] 라이트 패커블 윈드브레이커_SPJJG25C09",
+    "finalPrice": 28730,
+    "originalPrice": 39903,
+    "discountRatio": 28,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260226/6057479/6057479_17730370653496_500.jpg",
+    "additionalInfo": "454명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 1097,
+    "pageViewTotal": 43182
+  },
+  {
+    "rank": 89,
+    "id": "6050351",
+    "brandName": "리복",
+    "productName": "클럽 C 로퍼 스웨이드 - 블랙 / 100278436",
+    "finalPrice": 107100,
+    "originalPrice": 119000,
+    "discountRatio": 10,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260224/6050351/6050351_17730225607102_500.jpg",
+    "additionalInfo": "397명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 91,
+    "pageViewTotal": 11984
+  },
+  {
+    "rank": 90,
+    "id": "6147955",
+    "brandName": "쿨시스",
+    "productName": "CS BELT PANTS&SKIRTS-065",
+    "finalPrice": 79140,
+    "originalPrice": 118119,
+    "discountRatio": 33,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260317/6147955/6147955_17738440418587_500.jpg",
+    "additionalInfo": "13명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 0,
+    "pageViewTotal": 981
+  },
+  {
+    "rank": 91,
+    "id": "5797224",
+    "brandName": "나이키",
+    "productName": "샥스 Z W - 라이트 본:블랙:팬텀:라이트 본 / HQ7540-004",
+    "finalPrice": 159000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251202/5797224/5797224_17648342988498_500.jpg",
+    "additionalInfo": "70명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 241,
+    "pageViewTotal": 11991
+  },
+  {
+    "rank": 92,
+    "id": "5864294",
+    "brandName": "디미트리블랙",
+    "productName": "[핏 선택] 포시즌 에센셜 원턱 커브드 스웻 팬츠_2COLOR",
+    "finalPrice": 29500,
+    "originalPrice": 44697,
+    "discountRatio": 34,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251231/5864294/5864294_17679332638576_500.jpg",
+    "additionalInfo": "549명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 4249,
+    "pageViewTotal": 112296
+  },
+  {
+    "rank": 93,
+    "id": "6078907",
+    "brandName": "오니츠카타이거",
+    "productName": "타이거 코르세어 1183C555_250",
+    "finalPrice": 230000,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260304/6078907/6078907_17726037636520_500.jpg",
+    "additionalInfo": "52명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 0,
+    "pageViewTotal": 1329
+  },
+  {
+    "rank": 94,
+    "id": "5662153",
+    "brandName": "무신사 스탠다드",
+    "productName": "워셔블 수피마 코튼 라운드 넥 가디건 [네이비]",
+    "finalPrice": 59900,
+    "originalPrice": 0,
+    "discountRatio": 0,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251029/5662153/5662153_17682941898809_500.jpg",
+    "additionalInfo": "109명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 801,
+    "pageViewTotal": 19036
+  },
+  {
+    "rank": 95,
+    "id": "6039372",
+    "brandName": "노스페이스",
+    "productName": "NJ3BS06J 화이트라벨 브리오 자켓 BLACK",
+    "finalPrice": 188100,
+    "originalPrice": 198000,
+    "discountRatio": 5,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260223/6039372/6039372_17718089819291_500.jpg",
+    "additionalInfo": "158명이 보는 중",
+    "isRising": false,
+    "category": "아우터",
+    "purchaseTotal": 111,
+    "pageViewTotal": 12470
+  },
+  {
+    "rank": 96,
+    "id": "5888829",
+    "brandName": "아디다스",
+    "productName": "삼바 OG - 클리어스카이:브라운 / IH9167",
+    "finalPrice": 87100,
+    "originalPrice": 150172,
+    "discountRatio": 42,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260113/5888829/5888829_17683566071471_500.jpg",
+    "additionalInfo": "188명이 보는 중",
+    "isRising": false,
+    "category": "속옷/잠옷",
+    "purchaseTotal": 355,
+    "pageViewTotal": 25847
+  },
+  {
+    "rank": 97,
+    "id": "5717317",
+    "brandName": "워크온바디오프",
+    "productName": "릴렉스 세미 와이드 데님 팬츠 (5color)",
+    "finalPrice": 39900,
+    "originalPrice": 57000,
+    "discountRatio": 30,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20251111/5717317/5717317_17628569113447_500.jpg",
+    "additionalInfo": "507명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 30923,
+    "pageViewTotal": 136372
+  },
+  {
+    "rank": 98,
+    "id": "6109090",
+    "brandName": "탄산마그네슘",
+    "productName": "송이송이X탄산 버튼 니트 헤어밴드 (그레이)",
+    "finalPrice": 28880,
+    "originalPrice": 38000,
+    "discountRatio": 24,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260310/6109090/6109090_17739031756972_500.jpg",
+    "additionalInfo": "105명이 보는 중",
+    "isRising": false,
+    "category": "상의",
+    "purchaseTotal": 60,
+    "pageViewTotal": 1861
+  },
+  {
+    "rank": 99,
+    "id": "5972518",
+    "brandName": "아디다스",
+    "productName": "파이어버드 데님 트랙탑 - 블랙 / KD2898",
+    "finalPrice": 111200,
+    "originalPrice": 139000,
+    "discountRatio": 20,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20260203/5972518/5972518_17701736852339_500.jpg",
+    "additionalInfo": "63명이 보는 중",
+    "isRising": false,
+    "category": "바지",
+    "purchaseTotal": 224,
+    "pageViewTotal": 12802
+  },
+  {
+    "rank": 100,
+    "id": "5426410",
+    "brandName": "토앤토",
+    "productName": "x킨치 MOC - 001 (Z)",
+    "finalPrice": 189000,
+    "originalPrice": 198947,
+    "discountRatio": 5,
+    "imageUrl": "https://image.msscdn.net/images/goods_img/20250909/5426410/5426410_17742245130856_500.jpg",
+    "additionalInfo": "95명이 보는 중",
+    "isRising": false,
+    "category": "신발",
+    "purchaseTotal": 290,
+    "pageViewTotal": 23551
+  }
+];
+
+const CATEGORIES = [
+    "아우터","상의","바지","원피스/스커트","신발","가방","모자","액세서리","속옷/잠옷","뷰티","식품/보충제","미분류"
+];
+
+// 편집 내역 저장 (localStorage)
+const STORAGE_KEY = "musinsa_ranking_edits";
+
+function loadEdits() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+    catch { return {}; }
+}
+
+function saveEditsToStorage(edits) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(edits));
+}
+
+// 편집 내역 적용
+function applyEdits(products) {
+    const edits = loadEdits();
+    products.forEach(p => {
+        const key = String(p.id);
+        if (edits[key]) p.category = edits[key];
+    });
+}
+
+applyEdits(PRODUCTS);
+
+// 카테고리 필터 옵션 생성
+function initCategoryFilter() {
+    const select = document.getElementById("categoryFilter");
+    CATEGORIES.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c; opt.textContent = c;
+        select.appendChild(opt);
+    });
+}
+
+// 통계 바 업데이트
+function updateStats(filtered) {
+    const catCount = {};
+    let risingCount = 0;
+    filtered.forEach(p => {
+        catCount[p.category] = (catCount[p.category] || 0) + 1;
+        if (p.isRising) risingCount++;
+    });
+
+    const parts = [
+        `<span class="stat-item">표시: <strong>${filtered.length}개</strong></span>`,
+        `<span class="stat-item">급상승: <strong>${risingCount}개</strong></span>`,
+    ];
+
+    const top3 = Object.entries(catCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([c, n]) => `${c}(${n})`)
+        .join(", ");
+    parts.push(`<span class="stat-item">카테고리 TOP3: <strong>${top3}</strong></span>`);
+
+    const unclassified = catCount["미분류"] || 0;
+    if (unclassified > 0) {
+        parts.push(`<span class="stat-item" style="color:#e65100">미분류: <strong>${unclassified}개</strong></span>`);
+    }
+
+    document.getElementById("statsBar").innerHTML = parts.join("");
+}
+
+// 포맷
+function formatPrice(n) { return n ? n.toLocaleString() + "원" : "-"; }
+
+function calcCvr(p) {
+    if (p.pageViewTotal == null || p.purchaseTotal == null || p.pageViewTotal === 0) return null;
+    return (p.purchaseTotal / p.pageViewTotal) * 100;
+}
+
+function getRankClass(rank) {
+    if (rank === 1) return "rank-1";
+    if (rank === 2) return "rank-2";
+    if (rank === 3) return "rank-3";
+    return "";
+}
+
+// 테이블 렌더
+function renderTable() {
+    const search = document.getElementById("searchInput").value.toLowerCase();
+    const catFilter = document.getElementById("categoryFilter").value;
+    const risingFilter = document.getElementById("risingFilter").value;
+
+    let filtered = PRODUCTS.filter(p => {
+        if (search && !(p.brandName.toLowerCase().includes(search) || p.productName.toLowerCase().includes(search))) return false;
+        if (catFilter && p.category !== catFilter) return false;
+        if (risingFilter === "rising" && !p.isRising) return false;
+        if (risingFilter === "unclassified" && p.category !== "미분류") return false;
+        return true;
+    });
+
+    document.getElementById("totalCount").textContent = filtered.length + "개";
+    updateStats(filtered);
+
+    const tbody = document.getElementById("tableBody");
+    tbody.innerHTML = filtered.map(p => `
+        <tr>
+            <td class="rank-cell ${getRankClass(p.rank)}">${p.rank}</td>
+            <td>
+                <div class="product-cell">
+                    <img class="product-img" src="${p.imageUrl}" alt="" loading="lazy"
+                         onerror="this.src='data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;56&quot; height=&quot;56&quot;><rect fill=&quot;%23eee&quot; width=&quot;56&quot; height=&quot;56&quot;/><text x=&quot;28&quot; y=&quot;32&quot; text-anchor=&quot;middle&quot; fill=&quot;%23aaa&quot; font-size=&quot;10&quot;>No IMG</text></svg>'">
+                    <div class="product-info">
+                        <span class="product-brand">${p.brandName}</span>
+                        <span class="product-name">
+                            ${p.productName}
+                            ${p.isRising ? '<span class="rising-badge">급상승 🔥</span>' : ''}
+                        </span>
+                    </div>
+                </div>
+            </td>
+            <td class="category-cell">
+                <span class="category-tag ${p.category}" onclick="openCategoryEdit(this, '${p.id}')">${p.category}</span>
+                <div class="category-edit" id="cat-edit-${p.id}">
+                    ${CATEGORIES.map(c => `<button onclick="setCategory('${p.id}','${c}',this)">${c}</button>`).join("")}
+                    <input type="text" placeholder="직접 입력..." onkeydown="if(event.key==='Enter')setCategory('${p.id}',this.value,this)">
+                </div>
+            </td>
+            <td class="price-cell">
+                <span class="final-price">${formatPrice(p.finalPrice)}</span>
+                ${p.discountRatio > 0 ? `<br><span class="original-price">${formatPrice(p.originalPrice)}</span>` : ''}
+            </td>
+            <td>${p.discountRatio > 0 ? `<span class="discount">${p.discountRatio}%</span>` : '-'}</td>
+            <td style="color:#555;">${p.pageViewTotal != null ? p.pageViewTotal.toLocaleString() : '-'}</td>
+            <td style="font-weight:600; color:#1565c0;">${p.purchaseTotal != null ? p.purchaseTotal.toLocaleString() + '건' : '-'}</td>
+            <td style="font-weight:700; color:${(() => { const r = calcCvr(p); return r >= 5 ? '#c62828' : r >= 3 ? '#e65100' : '#333'; })()}">${calcCvr(p) != null ? calcCvr(p).toFixed(1) + '%' : '-'}</td>
+        </tr>
+    `).join("");
+}
+
+// 카테고리 편집
+let openEditId = null;
+
+function openCategoryEdit(el, productId) {
+    // 이전 열린 것 닫기
+    if (openEditId) {
+        const prev = document.getElementById("cat-edit-" + openEditId);
+        if (prev) prev.classList.remove("active");
+    }
+    const edit = document.getElementById("cat-edit-" + productId);
+    edit.classList.toggle("active");
+    openEditId = edit.classList.contains("active") ? productId : null;
+}
+
+function setCategory(productId, category, el) {
+    if (!category.trim()) return;
+    const product = PRODUCTS.find(p => String(p.id) === String(productId));
+    if (product) {
+        product.category = category.trim();
+        // localStorage에 저장
+        const edits = loadEdits();
+        edits[productId] = category.trim();
+        saveEditsToStorage(edits);
+        renderTable();
+        showToast(`${product.productName} → ${category.trim()}`);
+    }
+    openEditId = null;
+}
+
+// 클릭 외부 시 닫기
+document.addEventListener("click", (e) => {
+    if (!e.target.closest(".category-cell") && openEditId) {
+        const edit = document.getElementById("cat-edit-" + openEditId);
+        if (edit) edit.classList.remove("active");
+        openEditId = null;
+    }
+});
+
+// 편집 저장 버튼
+function saveEdits() {
+    showToast("편집 내역이 브라우저에 저장되었습니다");
+}
+
+// CSV 내보내기
+function exportCSV() {
+    const headers = ["순위","상품코드","브랜드","상품명","카테고리","판매가","정가","할인율","총조회수","누적판매","전환율","급상승","이미지URL"];
+    const rows = PRODUCTS.map(p => [
+        p.rank, p.id, p.brandName, `"${p.productName.replace(/"/g,'""')}"`,
+        p.category, p.finalPrice, p.originalPrice, p.discountRatio + "%",
+        p.pageViewTotal != null ? p.pageViewTotal : "",
+        p.purchaseTotal != null ? p.purchaseTotal : "",
+        calcCvr(p) != null ? calcCvr(p).toFixed(1) + "%" : "",
+        p.isRising ? "Y" : "N", p.imageUrl
+    ]);
+
+    const bom = "\uFEFF";
+    const csv = bom + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `musinsa_ranking_top100_2026-03-24_1450.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("CSV 파일 다운로드 완료");
+}
+
+// 필터 초기화
+function resetFilters() {
+    document.getElementById("searchInput").value = "";
+    document.getElementById("categoryFilter").value = "";
+    document.getElementById("risingFilter").value = "";
+    renderTable();
+}
+
+// 토스트 알림
+function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2000);
+}
+
+// 이벤트 바인딩
+document.getElementById("searchInput").addEventListener("input", renderTable);
+document.getElementById("categoryFilter").addEventListener("change", renderTable);
+document.getElementById("risingFilter").addEventListener("change", renderTable);
+
+// 초기화
+initCategoryFilter();
+renderTable();
+</script>
+</body>
+</html>
