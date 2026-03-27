@@ -211,16 +211,44 @@ C:\Users\AD0903\ai_office_project\
 - [x] 최재원과 역할 분리: 최재원=실적 검증(DB_SCS_W), 박도현=상품 기획(DB_PRDT+CTGR_SALES_W+DB_COST_MST)
 - [x] 기획 분석 가이드 포함 (재고회전율, 마크업, 소재/핏 패턴 분석)
 
+### Phase 3.0 — 전체 회의 모드 tool_use 지원 (완료)
+- [x] 회의 모드에서 에이전트별 도구(tool_use) 활성화 (이서연/김하늘/박도현/최재원)
+- [x] 회의 중 tool_use 루프 지원 (최대 3회, 속도와 깊이 균형)
+- [x] 데이터 조회 중 실시간 알림 ("📊 데이터 조회 중...")
+- [x] 회의 컨텍스트에 "필요 시 도구 사용" 안내 포함
+- [x] getToolsForAgent() 헬퍼로 handleChat/handleMeeting 도구 매핑 통합
+
+### Phase 3.1 — 에이전트 작업 결과물 패널 (완료)
+- [x] 채팅 패널에 "💬 채팅 | 📊 결과물" 모드 토글 추가
+- [x] 서버: tool 실행 시 tool_activity WebSocket 메시지 전송
+- [x] 서버: TOOL_LABELS 한국어 매핑 (19개 도구), buildResultPreview 요약 생성
+- [x] 프론트엔드: 결과물 카드 UI (에이전트 색상, 도구명, 입력 요약, 결과 프리뷰, 시간, 데이터 크기)
+- [x] 에이전트별 필터 기능 (전체 / 에이전트별 필터 버튼)
+- [x] 결과 건수 뱃지 (📊 결과물 버튼에 실시간 카운트)
+- [x] 성공/오류 시각적 구분 (초록/빨강 좌측 보더)
+- [x] index.html 동기화
+
+### Phase 3.2 — SKILL / STATUS 뱃지 시스템 (완료)
+- [x] AGENT_SKILLS 설정: 에이전트별 데이터 소스 뱃지 (이서연 1개, 김하늘 4개, 박도현 2개, 최재원 1개)
+- [x] agentLiveStatus 실시간 상태 추적 (idle/responding/querying/meeting/walking)
+- [x] 캔버스: STATUS pill (이름 위, 색상별 상태 표시, querying/responding 시 펄스 애니메이션)
+- [x] 캔버스: SKILL dots (이름 옆, 데이터 소스별 색상 점)
+- [x] 에이전트 카드: SKILL 태그 (색상 배경 + 아이콘 + 라벨)
+- [x] 에이전트 카드: STATUS dot (상태 색상 표시 + 펄스 애니메이션)
+- [x] 툴팁: 데이터 소스 섹션 추가 + 라이브 상태 색상 반영
+- [x] WS 이벤트 연동: stream_start→responding, tool_activity→querying, stream_end→idle, meeting→meeting
+- [x] 캔버스 state machine 연동: visit/hosting→walking, meeting→meeting, returning→walking, idle→idle
+
 **→ Phase 2 완료: 5명 전원 데이터 연결 (CEO 제외, 의도적)**
 
 ## 미구현 / 추후 작업 (Phase 3+)
 
-- [ ] Snowflake 비밀번호 설정 → 최재원/김하늘/박도현 Snowflake 도구 활성화
-- [ ] Render.com 배포 + 환경변수 등록 → URL 기반 서비스
+- [ ] Snowflake 비밀번호 설정 → 최재원/김하늘/박도현 Snowflake 도구 활성화 (관리자에게 로컬 비밀번호 또는 서비스 계정 요청 필요)
+- [x] Render.com 배포 완료 → https://ai-agnets-office.onrender.com/
 - [ ] Snowflake에 전체 브랜드 데이터 업로드 (권한 확보 후)
-- [ ] 전체 회의 모드에서 에이전트 tool_use 지원
-- [ ] 에이전트 작업 결과물 패널
-- [ ] SKILL / STATUS 뱃지 시스템
+- [x] 전체 회의 모드에서 에이전트 tool_use 지원
+- [x] 에이전트 작업 결과물 패널
+- [x] SKILL / STATUS 뱃지 시스템
 
 ## 변경 이력
 
@@ -238,6 +266,11 @@ C:\Users\AD0903\ai_office_project\
 | 2026-03-26 | Phase 2.6 완료 — 김하늘 무신사 랭킹 tool_use 연동 (Top 100) |
 | 2026-03-26 | Phase 2.5 완료 — 이서연 경쟁사 데이터 tool_use 연동 (839개 상품) |
 | 2026-03-26 | Phase 2 완료 — 최재원 Snowflake tool_use 연동 |
+| 2026-03-27 | Render.com Web Service 배포 완료 (https://ai-agnets-office.onrender.com/) |
+| 2026-03-27 | **Phase 3.2 완료** — SKILL/STATUS 뱃지 시스템 (캔버스+카드+툴팁, 실시간 상태 추적) |
+| 2026-03-27 | **Phase 3.1 완료** — 에이전트 작업 결과물 패널 (도구 활동 카드, 필터, 뱃지) |
+| 2026-03-27 | **Phase 3.0 완료** — 전체 회의 모드 tool_use 지원 (4명 에이전트 도구 활성화) |
+| 2026-03-27 | Snowflake 연동 시도 — SSO 전용 계정으로 확인, 관리자에게 로컬 비밀번호 요청 필요 |
 | 2026-03-24 | 초기 버전 완성 (단일 HTML 파일) |
 
 ## API 비용 추정 (향후 참고)

@@ -221,7 +221,8 @@ async function handleChat(ws, agentId, userMessage) {
   addMessage(agentId, 'user', userMessage);
 
   // 이서연(1) + 김하늘(2) + 박도현(3) + 최재원(4) tool_use 활성화
-  const useTools = agentId === 1 || agentId === 2 || agentId === 3 || agentId === 4;
+  const tools = getToolsForAgent(agentId);
+  const useTools = !!tools;
 
   ws.send(JSON.stringify({ type: 'stream_start', agentId, agentName: agent.name }));
 
@@ -241,14 +242,8 @@ async function handleChat(ws, agentId, userMessage) {
         messages,
       };
 
-      if (agentId === 1) {
-        apiParams.tools = MARKET_AGENT_TOOLS;
-      } else if (agentId === 2) {
-        apiParams.tools = TREND_AGENT_TOOLS;
-      } else if (agentId === 3) {
-        apiParams.tools = PRODUCT_PLANNING_TOOLS;
-      } else if (agentId === 4) {
-        apiParams.tools = DATA_ANALYST_TOOLS;
+      if (tools) {
+        apiParams.tools = tools;
       }
 
       // 스트리밍으로 호출
@@ -298,6 +293,9 @@ async function handleChat(ws, agentId, userMessage) {
             content: result
           });
           console.log(`[Tool] ${toolBlock.name} 성공 (${result.length} chars)`);
+
+          // 결과물 패널용 tool_activity 전송
+          sendToolActivity(ws, agentId, agent.name, toolBlock.name, toolBlock.input, result, true);
         } catch (err) {
           console.error(`[Tool Error] ${toolBlock.name}:`, err.message);
           toolResults.push({
@@ -306,6 +304,7 @@ async function handleChat(ws, agentId, userMessage) {
             content: `오류: ${err.message}`,
             is_error: true
           });
+          sendToolActivity(ws, agentId, agent.name, toolBlock.name, toolBlock.input, err.message, false);
         }
       }
 
@@ -335,7 +334,99 @@ async function handleChat(ws, agentId, userMessage) {
   }
 }
 
-// ── 전체 회의 처리 ───────────────────────────────────────────────────────────
+// ── 결과물 패널용 tool_activity 전송 ─────────────────────────────────────────
+
+const TOOL_LABELS = {
+  query_snowflake: '📊 Snowflake 쿼리',
+  get_weekly_summary: '📈 주간 판매 요약',
+  query_competitors: '🔍 경쟁사 검색',
+  get_brand_summary: '🏷️ 브랜드 요약',
+  compare_brands: '⚖️ 브랜드 비교',
+  query_musinsa_ranking: '👕 무신사 랭킹 검색',
+  get_musinsa_summary: '📋 무신사 요약',
+  get_category_trend: '📊 카테고리 트렌드',
+  query_google_trends: '🌐 구글 트렌드 검색',
+  get_google_trends_summary: '🌐 구글 트렌드 요약',
+  query_tiktok_hashtags: '🎵 TikTok 해시태그 검색',
+  get_tiktok_summary: '🎵 TikTok 요약',
+  run_musinsa_crawler: '🕷️ 무신사 크롤링',
+  run_tiktok_crawler: '🕷️ TikTok 크롤링',
+  query_naver_keywords: '🔎 네이버 키워드 검색',
+  get_rising_keywords: '🚀 급상승 키워드',
+  query_product_db: '📦 상품 DB 쿼리',
+  get_category_performance: '📊 카테고리 성과',
+  get_top_selling_styles: '🏆 판매 TOP 스타일',
+};
+
+function buildResultPreview(toolName, rawResult) {
+  try {
+    const data = JSON.parse(rawResult);
+
+    // 배열 결과: 행 수 + 첫 항목 키
+    if (Array.isArray(data)) {
+      const count = data.length;
+      if (count === 0) return '결과 없음 (0건)';
+      const keys = Object.keys(data[0]).slice(0, 4).join(', ');
+      return `${count}건 조회 — 컬럼: ${keys}`;
+    }
+
+    // 객체 결과: 주요 키-값 요약
+    if (typeof data === 'object' && data !== null) {
+      // total이 있으면 포함
+      if (data.total !== undefined) {
+        const entries = Object.entries(data).slice(0, 3).map(([k, v]) => {
+          if (typeof v === 'object') return `${k}: (${Array.isArray(v) ? v.length + '건' : '상세'})`;
+          return `${k}: ${v}`;
+        });
+        return entries.join(' | ');
+      }
+      const entries = Object.entries(data).slice(0, 4).map(([k, v]) => {
+        if (typeof v === 'object') return `${k}: (${Array.isArray(v) ? v.length + '건' : '...'})`;
+        const s = String(v);
+        return `${k}: ${s.length > 30 ? s.slice(0, 30) + '...' : s}`;
+      });
+      return entries.join(' | ');
+    }
+
+    return String(data).slice(0, 100);
+  } catch {
+    return rawResult.slice(0, 100);
+  }
+}
+
+function sendToolActivity(ws, agentId, agentName, toolName, toolInput, result, success) {
+  try {
+    const inputSummary = toolInput.purpose || toolInput.sql?.slice(0, 80) || toolInput.brand || toolInput.metric || toolInput.category || JSON.stringify(toolInput).slice(0, 80);
+    const preview = success ? buildResultPreview(toolName, result) : `오류: ${result}`;
+
+    ws.send(JSON.stringify({
+      type: 'tool_activity',
+      agentId,
+      agentName,
+      toolName,
+      toolLabel: TOOL_LABELS[toolName] || toolName,
+      inputSummary,
+      preview,
+      success,
+      resultSize: success ? result.length : 0,
+      timestamp: new Date().toISOString(),
+    }));
+  } catch (err) {
+    console.error('[sendToolActivity Error]', err.message);
+  }
+}
+
+// ── 에이전트별 도구 매핑 ─────────────────────────────────────────────────────
+
+function getToolsForAgent(agentId) {
+  if (agentId === 1) return MARKET_AGENT_TOOLS;
+  if (agentId === 2) return TREND_AGENT_TOOLS;
+  if (agentId === 3) return PRODUCT_PLANNING_TOOLS;
+  if (agentId === 4) return DATA_ANALYST_TOOLS;
+  return null;
+}
+
+// ── 전체 회의 처리 (tool_use 지원) ──────────────────────────────────────────
 
 async function handleMeeting(ws, userMessage) {
   ws.send(JSON.stringify({ type: 'meeting_start' }));
@@ -351,32 +442,103 @@ async function handleMeeting(ws, userMessage) {
     const meetingContext = allResponses.length > 0
       ? `\n\n[회의 진행 상황]\n사용자 질문: "${userMessage}"\n\n` +
         allResponses.map(r => `${r.name} (${r.role}): ${r.content}`).join('\n\n') +
-        `\n\n위 동료들의 의견을 참고하여, 당신의 전문 분야 관점에서 답변해주세요.`
+        `\n\n위 동료들의 의견을 참고하여, 당신의 전문 분야 관점에서 답변해주세요. 필요하면 도구를 사용하여 데이터를 조회한 후 답변하세요.`
       : userMessage;
 
     addMessage(agentId, 'user', meetingContext);
-    const messages = getConversation(agentId);
 
     ws.send(JSON.stringify({ type: 'stream_start', agentId, agentName: agent.name }));
 
     try {
-      const stream = anthropic.messages.stream({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 800,
-        system: agent.systemPrompt + '\n\n[회의 모드] 여러 에이전트가 참여하는 회의입니다. 간결하게 핵심만 답변하세요 (3-5문장).',
-        messages
-      });
-
       let fullResponse = '';
+      let loopCount = 0;
+      const maxLoops = 3; // 회의 모드에서는 3회로 제한 (속도 유지)
+      const tools = getToolsForAgent(agentId);
 
-      stream.on('text', (text) => {
-        fullResponse += text;
-        ws.send(JSON.stringify({ type: 'stream_delta', agentId, delta: text }));
-      });
+      while (loopCount < maxLoops) {
+        loopCount++;
+        const messages = getConversation(agentId);
 
-      await stream.finalMessage();
+        const apiParams = {
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          system: agent.systemPrompt + '\n\n[회의 모드] 여러 에이전트가 참여하는 회의입니다. 데이터 조회가 필요하면 도구를 적극 사용하되, 최종 답변은 간결하게 핵심만 정리하세요 (3-7문장).',
+          messages,
+        };
 
-      addMessage(agentId, 'assistant', fullResponse);
+        if (tools) {
+          apiParams.tools = tools;
+        }
+
+        const stream = anthropic.messages.stream(apiParams);
+
+        let turnText = '';
+        let toolUseBlocks = [];
+
+        stream.on('text', (text) => {
+          turnText += text;
+          ws.send(JSON.stringify({ type: 'stream_delta', agentId, delta: text }));
+        });
+
+        const finalMessage = await stream.finalMessage();
+
+        // tool_use 블록 수집
+        for (const block of finalMessage.content) {
+          if (block.type === 'tool_use') {
+            toolUseBlocks.push(block);
+          }
+        }
+
+        // tool_use가 없으면 최종 응답 — 루프 종료
+        if (toolUseBlocks.length === 0) {
+          fullResponse += turnText;
+          break;
+        }
+
+        // tool_use가 있으면: assistant 메시지 저장 → tool 실행 → tool_result 저장
+        addMessage(agentId, 'assistant', finalMessage.content);
+
+        // 데이터 조회 중 알림
+        ws.send(JSON.stringify({
+          type: 'stream_delta', agentId,
+          delta: '\n\n📊 *데이터 조회 중...*\n\n'
+        }));
+        fullResponse += turnText + '\n\n📊 *데이터 조회 중...*\n\n';
+
+        // 각 tool 실행 및 결과 수집
+        const toolResults = [];
+        for (const toolBlock of toolUseBlocks) {
+          try {
+            const result = await executeTool(toolBlock.name, toolBlock.input);
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolBlock.id,
+              content: result
+            });
+            console.log(`[Meeting Tool] ${agent.name} → ${toolBlock.name} 성공 (${result.length} chars)`);
+            sendToolActivity(ws, agentId, agent.name, toolBlock.name, toolBlock.input, result, true);
+          } catch (err) {
+            console.error(`[Meeting Tool Error] ${agent.name} → ${toolBlock.name}:`, err.message);
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolBlock.id,
+              content: `오류: ${err.message}`,
+              is_error: true
+            });
+            sendToolActivity(ws, agentId, agent.name, toolBlock.name, toolBlock.input, err.message, false);
+          }
+        }
+
+        // tool_result를 user 메시지로 추가 (Claude API 규약)
+        addMessage(agentId, 'user', toolResults);
+      }
+
+      // 최종 텍스트 응답 저장
+      const lastMsg = getConversation(agentId).at(-1);
+      if (!lastMsg || lastMsg.role !== 'assistant') {
+        addMessage(agentId, 'assistant', fullResponse);
+      }
+
       allResponses.push({ name: agent.name, role: agent.role, content: fullResponse });
       ws.send(JSON.stringify({ type: 'stream_end', agentId }));
 

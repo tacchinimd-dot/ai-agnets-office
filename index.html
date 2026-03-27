@@ -17,7 +17,15 @@
   .agent-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
   .agent-name { font-weight: bold; font-size: 14px; }
   .agent-role { font-size: 11px; color: #888; margin-bottom: 4px; }
-  .agent-status { font-size: 12px; color: #adf; }
+  .agent-status { font-size: 12px; color: #adf; display: flex; align-items: center; gap: 5px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; animation: statusPulse 2s ease-in-out infinite; }
+  @keyframes statusPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .status-indicator { width: 7px; height: 7px; border-radius: 50%; margin-left: auto; flex-shrink: 0; }
+  .card-skills { display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 4px; }
+  .skill-tag {
+    font-size: 9px; padding: 1px 5px; border-radius: 8px;
+    border: 1px solid; white-space: nowrap; font-weight: 600;
+  }
 
   /* ── Chat Panel ── */
   #chat-panel {
@@ -103,6 +111,103 @@
   #connection-status.connected { color: #3fb950; }
   #connection-status.disconnected { color: #f85149; }
 
+  /* ── Panel Mode Toggle ── */
+  #panel-mode-toggle {
+    display: flex; gap: 0; padding: 6px 8px; background: #161b22;
+    border-bottom: 1px solid #30363d;
+  }
+  .panel-mode-btn {
+    flex: 1; padding: 6px 0; font-size: 12px; font-weight: 600;
+    color: #8b949e; background: transparent; border: 1px solid transparent;
+    border-radius: 6px; cursor: pointer; font-family: 'Segoe UI', sans-serif;
+    transition: all .15s; text-align: center;
+  }
+  .panel-mode-btn:hover { color: #c9d1d9; background: rgba(255,255,255,0.04); }
+  .panel-mode-btn.active {
+    color: #f0f6fc; background: #0d1117;
+    border-color: #30363d;
+  }
+
+  /* ── Results Panel ── */
+  #results-panel {
+    flex: 1; overflow-y: auto; padding: 12px; display: none;
+    flex-direction: column; gap: 10px;
+    scrollbar-width: thin; scrollbar-color: #30363d #0d1117;
+  }
+  #results-panel::-webkit-scrollbar { width: 6px; }
+  #results-panel::-webkit-scrollbar-track { background: #0d1117; }
+  #results-panel::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+  .results-empty {
+    color: #8b949e; text-align: center; padding: 60px 20px; font-size: 13px; line-height: 1.8;
+  }
+  .results-empty .empty-icon { font-size: 36px; margin-bottom: 12px; }
+
+  /* Agent group in results */
+  .result-agent-group { margin-bottom: 8px; }
+  .result-agent-header {
+    display: flex; align-items: center; gap: 8px; padding: 6px 0;
+    font-size: 12px; font-weight: 700; color: #c9d1d9;
+    border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 6px;
+  }
+  .result-agent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .result-card {
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 6px;
+    animation: msgIn .2s ease-out; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .result-card:hover { border-color: #30363d; background: #1c2128; }
+  .result-card.error { border-left: 3px solid #f85149; }
+  .result-card.success { border-left: 3px solid #3fb950; }
+
+  .result-card-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+  }
+  .result-tool-label { font-size: 13px; font-weight: 600; color: #e6edf3; }
+  .result-time { font-size: 10px; color: #484f58; }
+
+  .result-input {
+    font-size: 11px; color: #8b949e; margin-bottom: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .result-preview {
+    font-size: 12px; color: #adbac7; line-height: 1.5;
+    padding: 6px 8px; background: rgba(0,0,0,0.2); border-radius: 4px;
+  }
+  .result-size {
+    font-size: 10px; color: #484f58; margin-top: 4px; text-align: right;
+  }
+
+  .result-card-detail {
+    display: none; margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid #21262d;
+  }
+  .result-card.expanded .result-card-detail { display: block; }
+
+  /* Results filter */
+  #results-filter {
+    display: flex; gap: 4px; padding: 8px 12px; background: #0d1117;
+    border-bottom: 1px solid #21262d; flex-wrap: wrap;
+  }
+  .results-filter-btn {
+    padding: 3px 8px; font-size: 10px; color: #8b949e;
+    background: transparent; border: 1px solid #21262d; border-radius: 12px;
+    cursor: pointer; font-family: 'Segoe UI', sans-serif; transition: all .15s;
+  }
+  .results-filter-btn:hover { color: #c9d1d9; border-color: #30363d; }
+  .results-filter-btn.active { color: #f0f6fc; background: #21262d; border-color: #30363d; }
+
+  /* Results count badge */
+  .results-badge {
+    display: inline-block; min-width: 16px; height: 16px; line-height: 16px;
+    padding: 0 5px; font-size: 10px; font-weight: 700; text-align: center;
+    background: #388bfd; color: #fff; border-radius: 8px; margin-left: 4px;
+  }
+  .results-badge.empty { background: transparent; }
+
   /* ── Tooltip ── */
   #tooltip {
     position: fixed; display: none; pointer-events: none; z-index: 9999;
@@ -139,6 +244,10 @@
     <div id="ui-panel"></div>
   </div>
   <div id="chat-panel">
+    <div id="panel-mode-toggle">
+      <button class="panel-mode-btn active" onclick="setPanelMode('chat')">💬 채팅</button>
+      <button class="panel-mode-btn" onclick="setPanelMode('results')">📊 결과물<span id="results-badge" class="results-badge empty"></span></button>
+    </div>
     <div id="chat-tabs"></div>
     <div id="chat-header">
       <div>
@@ -148,6 +257,8 @@
       <button id="chat-clear-btn" onclick="clearChat()">대화 초기화</button>
     </div>
     <div id="chat-messages"></div>
+    <div id="results-filter"></div>
+    <div id="results-panel"></div>
     <div id="chat-input-area">
       <textarea id="chat-input" placeholder="메시지를 입력하세요... (Enter로 전송, Shift+Enter 줄바꿈)" rows="1"></textarea>
       <button id="chat-send" onclick="sendMessage()">전송</button>
@@ -183,6 +294,43 @@ const AGENT_CFG = [
    jacketC:'#1a0c3a', pantsC:'#1a0c3a', tieC:'#7733cc', shoeC:'#080808',
    hx:900, hy:620, role:'Data Analyst', color:'#9055D8'},
 ];
+
+// ── Skill badges per agent ────────────────────────────────────────────────────
+const AGENT_SKILLS = [
+  // CEO — 도구 없음
+  [],
+  // 이서연 (Market) — 경쟁사 크롤링 데이터
+  [{ label:'경쟁사', color:'#3AB87A', icon:'🔍' }],
+  // 김하늘 (Trend) — 4대 소스
+  [{ label:'네이버', color:'#2DB400', icon:'🔎' }, { label:'무신사', color:'#ff4500', icon:'👕' },
+   { label:'TikTok', color:'#ee1d52', icon:'🎵' }, { label:'구글', color:'#4285f4', icon:'🌐' }],
+  // 박도현 (Product) — Snowflake 상품
+  [{ label:'상품DB', color:'#E05040', icon:'📦' }, { label:'원가', color:'#cc7733', icon:'💰' }],
+  // 최재원 (Data) — Snowflake 판매
+  [{ label:'판매DB', color:'#9055D8', icon:'📊' }],
+];
+
+// ── Live status tracking ─────────────────────────────────────────────────────
+// Possible: 'idle' | 'responding' | 'querying' | 'meeting' | 'walking'
+const agentLiveStatus = {
+  0: { status: 'idle', label: '업무 중', color: '#3fb950' },
+  1: { status: 'idle', label: '업무 중', color: '#3fb950' },
+  2: { status: 'idle', label: '업무 중', color: '#3fb950' },
+  3: { status: 'idle', label: '업무 중', color: '#3fb950' },
+  4: { status: 'idle', label: '업무 중', color: '#3fb950' },
+};
+
+function setAgentLiveStatus(agentId, status) {
+  const map = {
+    idle:       { label: '업무 중',       color: '#3fb950' },
+    responding: { label: '응답 중',       color: '#58a6ff' },
+    querying:   { label: '데이터 조회 중', color: '#d29922' },
+    meeting:    { label: '회의 중',       color: '#bc8cff' },
+    walking:    { label: '이동 중',       color: '#8b949e' },
+  };
+  const info = map[status] || map.idle;
+  agentLiveStatus[agentId] = { status, label: info.label, color: info.color };
+}
 
 // ── Korean role / task info for tooltip ───────────────────────────────────────
 const AGENT_INFO = [
@@ -323,9 +471,9 @@ class Agent {
               }
               if (sA!==-1&&sB!==-1) {
                 this.seatIdx=sA; this.mrIdx=mrIdx; this.partner=partner; this.state='visit';
-                this.setTarget(mr.seats[sA].x, mr.seats[sA].y); this.statusText='회의실 이동 중';
+                this.setTarget(mr.seats[sA].x, mr.seats[sA].y); this.statusText='회의실 이동 중'; setAgentLiveStatus(this.id, 'walking');
                 partner.seatIdx=sB; partner.mrIdx=mrIdx; partner.partner=this; partner.state='hosting';
-                partner.setTarget(mr.seats[sB].x, mr.seats[sB].y); partner.statusText='회의실 이동 중';
+                partner.setTarget(mr.seats[sB].x, mr.seats[sB].y); partner.statusText='회의실 이동 중'; setAgentLiveStatus(partner.id, 'walking');
               } else { this.idleTimer=base; this.statusText='업무 중'; }
             } else { this.idleTimer=base; this.statusText='업무 중'; }
           } else {
@@ -336,21 +484,21 @@ class Agent {
       }
       case 'visit': case 'hosting': {
         this.moveToward();
-        if (this.arrivedAtTarget()) { this.state='meeting'; this.meetingTimer=300+Math.floor(Math.random()*200); this.statusText='회의 중'; }
+        if (this.arrivedAtTarget()) { this.state='meeting'; this.meetingTimer=300+Math.floor(Math.random()*200); this.statusText='회의 중'; setAgentLiveStatus(this.id, 'meeting'); }
         break;
       }
       case 'meeting': {
         this.meetingTimer--;
         if (this.meetingTimer <= 0) {
           const p = this.partner;
-          this.state='returning'; this.setTarget(this.hx,this.hy); this.statusText='자리로 복귀 중'; this.partner=null; this.seatIdx=-1; this.mrIdx=-1;
-          if (p&&p.state==='meeting') { p.state='returning'; p.setTarget(p.hx,p.hy); p.statusText='자리로 복귀 중'; p.partner=null; p.seatIdx=-1; p.mrIdx=-1; }
+          this.state='returning'; this.setTarget(this.hx,this.hy); this.statusText='자리로 복귀 중'; this.partner=null; this.seatIdx=-1; this.mrIdx=-1; setAgentLiveStatus(this.id, 'walking');
+          if (p&&p.state==='meeting') { p.state='returning'; p.setTarget(p.hx,p.hy); p.statusText='자리로 복귀 중'; p.partner=null; p.seatIdx=-1; p.mrIdx=-1; setAgentLiveStatus(p.id, 'walking'); }
         }
         break;
       }
       case 'returning': {
         this.moveToward();
-        if (this.arrivedAtTarget()) { this.x=this.hx; this.y=this.hy; this.state='idle'; this.idleTimer=400+Math.random()*300; this.target=null; this.statusText='업무 중'; }
+        if (this.arrivedAtTarget()) { this.x=this.hx; this.y=this.hy; this.state='idle'; this.idleTimer=400+Math.random()*300; this.target=null; this.statusText='업무 중'; setAgentLiveStatus(this.id, 'idle'); }
         break;
       }
     }
@@ -604,6 +752,46 @@ function drawCharacter(c, agent, cx, cy, drawLegs, showBack) {
   else drawMale(c, agent, cx, cy, drawLegs, showBack);
 }
 
+// ── Badges on canvas ─────────────────────────────────────────────────────────
+function drawAgentBadges(c, agent, cx, baseY, frame) {
+  const skills = AGENT_SKILLS[agent.id] || [];
+  const live = agentLiveStatus[agent.id];
+
+  // ── STATUS pill (above name label) ──
+  c.font = 'bold 7px Segoe UI';
+  c.textAlign = 'center';
+  const statusLabel = live.label;
+  const stW = c.measureText(statusLabel).width + 10;
+
+  const pulseAlpha = live.status === 'querying' ? 0.6 + Math.sin(frame * 0.12) * 0.4 :
+                     live.status === 'responding' ? 0.6 + Math.sin(frame * 0.08) * 0.3 : 0.85;
+  c.save();
+  c.globalAlpha = pulseAlpha;
+  roundRect(c, cx - stW/2, baseY, stW, 11, 5, live.color + '33', live.color + '88', 0.8);
+  c.fillStyle = live.color;
+  c.fillText(statusLabel, cx, baseY + 8.5);
+  c.globalAlpha = 1;
+  c.restore();
+
+  // ── SKILL dots (right of name, at name level) ──
+  if (skills.length > 0) {
+    c.font = 'bold 10px Segoe UI'; // match name font
+    const nameW = c.measureText(agent.name).width;
+    const dotR = 3;
+    const gap = 2;
+    let sx = cx + nameW/2 + 6;
+    const sy = baseY + 8; // align with name label Y (hy-118 = baseY+8)
+
+    skills.forEach(skill => {
+      c.fillStyle = skill.color;
+      c.beginPath();
+      c.arc(sx + dotR, sy, dotR, 0, Math.PI * 2);
+      c.fill();
+      sx += dotR * 2 + gap;
+    });
+  }
+}
+
 // ── Workstation ───────────────────────────────────────────────────────────────
 // Render order: Monitor(far) → Desk → Character(near) → Chair(front)
 // Viewer sees character's BACK as they face the monitor/desk
@@ -617,6 +805,9 @@ function drawWorkstation(c, agent, frame) {
   c.font='bold 10px Segoe UI'; c.textAlign='center';
   c.fillStyle=agent.color;
   c.fillText(agent.name, hx, hy-118);
+
+  // ── Skill + Status badges (above monitor) ──
+  drawAgentBadges(c, agent, hx, hy-126, frame);
 
   // ── 1. Monitor (farthest from viewer = background) ──
   roundRect(c, hx-32, hy-114, 64, 52, 4, '#111118', '#2a2a35', 1.5);
@@ -812,11 +1003,22 @@ function updateUI() {
   panel.innerHTML='';
   agents.forEach(agent=>{
     const info=AGENT_INFO[agent.id];
+    const skills=AGENT_SKILLS[agent.id]||[];
+    const live=agentLiveStatus[agent.id];
     const card=document.createElement('div');
     card.className='agent-card' + (agent.id === currentChatAgent ? ' active' : '');
-    card.innerHTML='<div class="card-header"><div class="agent-dot" style="background:'+agent.color+'"></div><span class="agent-name">'+agent.name+'</span></div>'
+
+    const skillHtml = skills.length > 0
+      ? '<div class="card-skills">' + skills.map(s =>
+          `<span class="skill-tag" style="background:${s.color}22;color:${s.color};border-color:${s.color}44">${s.icon} ${s.label}</span>`
+        ).join('') + '</div>'
+      : '';
+
+    card.innerHTML='<div class="card-header"><div class="agent-dot" style="background:'+agent.color+'"></div><span class="agent-name">'+agent.name+'</span>'
+      +'<span class="status-indicator" style="background:'+live.color+'"></span></div>'
       +'<div class="agent-role">'+info.title+'</div>'
-      +'<div class="agent-status">'+agent.statusText+'</div>';
+      +skillHtml
+      +'<div class="agent-status"><span class="status-dot" style="background:'+live.color+'"></span>'+live.label+'</div>';
     card.onclick = () => { switchChat(agent.id); document.getElementById('chat-input').focus(); };
     panel.appendChild(card);
   });
@@ -839,8 +1041,14 @@ function showTooltip(agent, mx, my) {
     <div class="tt-sec pending tt-pending">⏳ 대기 업무</div>
     ${info.pending.map(t=>`<div class="tt-item">${t}</div>`).join('')}
   `;
+  const skills = AGENT_SKILLS[agent.id] || [];
+  if (skills.length > 0) {
+    html += `<div class="tt-sec">🔗 데이터 소스</div>`;
+    html += skills.map(s => `<div class="tt-item">${s.icon} ${s.label}</div>`).join('');
+  }
   if (info.question) html += `<div class="tt-q">❓ ${info.question}</div>`;
-  html += `<div class="tt-status"><span></span>${agent.statusText}</div>`;
+  const live = agentLiveStatus[agent.id];
+  html += `<div class="tt-status"><span style="background:${live.color}"></span>${live.label}</div>`;
   tooltip.innerHTML = html;
   tooltip.style.display = 'block';
 
@@ -1076,12 +1284,151 @@ function connectWS() {
   }
 }
 
+// ── Results Panel (결과물 패널) ──────────────────────────────────────────────
+
+let panelMode = 'chat'; // 'chat' | 'results'
+const toolActivities = []; // [{agentId, agentName, toolName, toolLabel, inputSummary, preview, success, resultSize, timestamp}]
+let resultsFilter = 'all'; // 'all' | agentId
+
+function setPanelMode(mode) {
+  panelMode = mode;
+  // 토글 버튼 업데이트
+  document.querySelectorAll('.panel-mode-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', (i === 0 && mode === 'chat') || (i === 1 && mode === 'results'));
+  });
+
+  const chatTabs = document.getElementById('chat-tabs');
+  const chatHeader = document.getElementById('chat-header');
+  const chatMessages = document.getElementById('chat-messages');
+  const chatInput = document.getElementById('chat-input-area');
+  const resultsPanel = document.getElementById('results-panel');
+  const resultsFilterEl = document.getElementById('results-filter');
+
+  if (mode === 'chat') {
+    chatTabs.style.display = '';
+    chatHeader.style.display = '';
+    chatMessages.style.display = '';
+    chatInput.style.display = '';
+    resultsPanel.style.display = 'none';
+    resultsFilterEl.style.display = 'none';
+  } else {
+    chatTabs.style.display = 'none';
+    chatHeader.style.display = 'none';
+    chatMessages.style.display = 'none';
+    chatInput.style.display = 'none';
+    resultsPanel.style.display = 'flex';
+    resultsFilterEl.style.display = 'flex';
+    renderResultsFilter();
+    renderResults();
+  }
+}
+
+function addToolActivity(data) {
+  toolActivities.unshift(data); // 최신이 위로
+  // 뱃지 업데이트
+  const badge = document.getElementById('results-badge');
+  badge.textContent = toolActivities.length;
+  badge.classList.remove('empty');
+
+  if (panelMode === 'results') {
+    renderResults();
+  }
+}
+
+function renderResultsFilter() {
+  const filterEl = document.getElementById('results-filter');
+  // 활동이 있는 에이전트만 필터 표시
+  const agentIds = [...new Set(toolActivities.map(a => a.agentId))];
+  const agentMap = {};
+  toolActivities.forEach(a => { agentMap[a.agentId] = a.agentName; });
+
+  let html = `<button class="results-filter-btn ${resultsFilter === 'all' ? 'active' : ''}" onclick="setResultsFilter('all')">전체</button>`;
+  agentIds.forEach(id => {
+    const agent = AGENT_CFG.find(a => a.id === id);
+    const color = agent ? agent.color : '#888';
+    html += `<button class="results-filter-btn ${resultsFilter === id ? 'active' : ''}" onclick="setResultsFilter(${id})">
+      <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${color};margin-right:3px;vertical-align:middle"></span>${agentMap[id]}
+    </button>`;
+  });
+  filterEl.innerHTML = html;
+}
+
+function setResultsFilter(filter) {
+  resultsFilter = filter;
+  renderResultsFilter();
+  renderResults();
+}
+
+function renderResults() {
+  const panel = document.getElementById('results-panel');
+
+  const filtered = resultsFilter === 'all'
+    ? toolActivities
+    : toolActivities.filter(a => a.agentId === resultsFilter);
+
+  if (filtered.length === 0) {
+    panel.innerHTML = `<div class="results-empty">
+      <div class="empty-icon">📊</div>
+      <div style="font-size:15px; font-weight:600; color:#c9d1d9; margin-bottom:8px">결과물이 없습니다</div>
+      <div>에이전트가 데이터를 조회하면<br>여기에 결과가 표시됩니다.</div>
+    </div>`;
+    return;
+  }
+
+  // 에이전트별 그룹핑 (필터가 all일 때) 또는 단일 리스트
+  let html = '';
+
+  if (resultsFilter === 'all') {
+    // 시간순 단일 리스트
+    filtered.forEach((act, idx) => {
+      html += buildResultCard(act, idx);
+    });
+  } else {
+    filtered.forEach((act, idx) => {
+      html += buildResultCard(act, idx);
+    });
+  }
+
+  panel.innerHTML = html;
+}
+
+function buildResultCard(act, idx) {
+  const agent = AGENT_CFG.find(a => a.id === act.agentId);
+  const color = agent ? agent.color : '#888';
+  const time = new Date(act.timestamp);
+  const timeStr = time.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const sizeStr = act.resultSize > 1024 ? (act.resultSize / 1024).toFixed(1) + 'KB' : act.resultSize + 'B';
+
+  return `<div class="result-card ${act.success ? 'success' : 'error'}" onclick="toggleResultDetail(this)">
+    <div class="result-card-header">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="result-agent-dot" style="background:${color}"></span>
+        <span style="font-size:11px;color:${color};font-weight:600">${act.agentName}</span>
+        <span class="result-tool-label">${act.toolLabel}</span>
+      </div>
+      <span class="result-time">${timeStr}</span>
+    </div>
+    <div class="result-input" title="${escapeHtml(act.inputSummary)}">→ ${escapeHtml(act.inputSummary)}</div>
+    <div class="result-preview">${escapeHtml(act.preview)}</div>
+    ${act.success ? `<div class="result-size">${sizeStr}</div>` : ''}
+  </div>`;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleResultDetail(el) {
+  el.classList.toggle('expanded');
+}
+
 function handleWSMessage(msg) {
   switch (msg.type) {
     case 'stream_start': {
       const target = currentChatAgent;
       const msgs = chatHistories[target];
       msgs.push({ role: 'agent', agentId: msg.agentId, name: msg.agentName, content: '', streaming: true });
+      setAgentLiveStatus(msg.agentId, 'responding');
       renderMessages();
       break;
     }
@@ -1094,6 +1441,7 @@ function handleWSMessage(msg) {
       const last = msgs[msgs.length - 1];
       if (last && last.streaming) last.streaming = false;
       isStreaming = false;
+      setAgentLiveStatus(msg.agentId, 'idle');
       document.getElementById('chat-send').disabled = false;
       document.getElementById('chat-input').focus();
       renderMessages();
@@ -1102,12 +1450,26 @@ function handleWSMessage(msg) {
     case 'meeting_start': {
       isStreaming = true;
       document.getElementById('chat-send').disabled = true;
+      // 전체 에이전트를 회의 상태로
+      [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'meeting'));
       break;
     }
     case 'meeting_end': {
       isStreaming = false;
       document.getElementById('chat-send').disabled = false;
       document.getElementById('chat-input').focus();
+      [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'idle'));
+      break;
+    }
+    case 'tool_activity': {
+      addToolActivity(msg);
+      // 도구 조회 상태 표시 후 짧게 유지
+      setAgentLiveStatus(msg.agentId, 'querying');
+      setTimeout(() => {
+        if (agentLiveStatus[msg.agentId].status === 'querying') {
+          setAgentLiveStatus(msg.agentId, 'responding');
+        }
+      }, 2000);
       break;
     }
     case 'error': {
