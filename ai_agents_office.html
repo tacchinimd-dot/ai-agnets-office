@@ -247,6 +247,28 @@
   .panel-badge.minutes-count { background: #388bfd; color: #fff; }
   .panel-badge.approval-count { background: #d29922; color: #fff; }
 
+  /* ── Collaboration UI ── */
+  #collab-bar {
+    display: none; padding: 6px 12px; background: #1c1f2b;
+    border-top: 1px solid #30363d; gap: 4px; flex-wrap: wrap; align-items: center;
+  }
+  #collab-bar.active { display: flex; }
+  .collab-label { font-size: 11px; color: #8b949e; margin-right: 4px; white-space: nowrap; }
+  .collab-agent-btn {
+    padding: 3px 8px; font-size: 10px; border-radius: 10px;
+    border: 1px solid #30363d; background: transparent; color: #8b949e;
+    cursor: pointer; font-family: 'Segoe UI', sans-serif; transition: all .15s;
+  }
+  .collab-agent-btn:hover { border-color: #58a6ff; color: #c9d1d9; }
+  .collab-agent-btn.selected { background: #21262d; border-color: #58a6ff; color: #58a6ff; font-weight: 600; }
+  .collab-agent-btn .collab-dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 3px; vertical-align: middle;
+  }
+  .collab-flow {
+    font-size: 11px; color: #58a6ff; margin: 2px 8px; display: flex; align-items: center; gap: 4px; width: 100%;
+  }
+  .collab-flow-arrow { color: #484f58; }
+
   /* ── Tooltip ── */
   #tooltip {
     position: fixed; display: none; pointer-events: none; z-index: 9999;
@@ -300,6 +322,11 @@
     <div id="minutes-filter"></div>
     <div id="minutes-panel"></div>
     <div id="approval-panel"></div>
+    <div id="collab-bar">
+      <span class="collab-label">🤝 협업:</span>
+      <div id="collab-agents"></div>
+      <div id="collab-flow" class="collab-flow"></div>
+    </div>
     <div id="chat-input-area">
       <textarea id="chat-input" placeholder="메시지를 입력하세요... (Enter로 전송, Shift+Enter 줄바꿈)" rows="1"></textarea>
       <button id="chat-send" onclick="sendMessage()">전송</button>
@@ -1225,6 +1252,7 @@ function loop() {
 
 const CHAT_AGENTS = [
   { id: -1, name: '전체 회의', role: '모든 에이전트 참여', color: '#58a6ff' },
+  { id: -2, name: '🤝 협업', role: '에이전트 간 연쇄 분석', color: '#ff9f43' },
   ...AGENT_CFG.map(a => ({ id: a.id, name: a.name, role: AGENT_INFO[a.id].title, color: a.color }))
 ];
 
@@ -1252,6 +1280,15 @@ function switchChat(agentId) {
   buildTabs();
   updateChatHeader();
   renderMessages();
+
+  // 협업 바 표시/숨김
+  const collabBar = document.getElementById('collab-bar');
+  if (agentId === -2) {
+    collabBar.classList.add('active');
+    buildCollabAgentButtons();
+  } else {
+    collabBar.classList.remove('active');
+  }
 
   // 하단 agent-card 하이라이트
   document.querySelectorAll('.agent-card').forEach((card, i) => {
@@ -1581,6 +1618,75 @@ function handleApproval(approvalId, decision) {
   renderApprovalPanel();
 }
 
+// ── Collaboration (에이전트 간 협업) ──────────────────────────────────────────
+
+const collabSelectedAgents = []; // 선택된 에이전트 ID 순서 배열
+
+function buildCollabAgentButtons() {
+  const container = document.getElementById('collab-agents');
+  container.innerHTML = AGENT_CFG.map(a => {
+    const sel = collabSelectedAgents.includes(a.id);
+    const order = sel ? collabSelectedAgents.indexOf(a.id) + 1 : '';
+    return `<button class="collab-agent-btn ${sel ? 'selected' : ''}" onclick="toggleCollabAgent(${a.id})">
+      <span class="collab-dot" style="background:${a.color}"></span>${a.name}${order ? ' (' + order + ')' : ''}
+    </button>`;
+  }).join('');
+  updateCollabFlow();
+}
+
+function toggleCollabAgent(id) {
+  const idx = collabSelectedAgents.indexOf(id);
+  if (idx >= 0) {
+    collabSelectedAgents.splice(idx, 1);
+  } else {
+    collabSelectedAgents.push(id);
+  }
+  buildCollabAgentButtons();
+}
+
+function updateCollabFlow() {
+  const flowEl = document.getElementById('collab-flow');
+  if (collabSelectedAgents.length < 2) {
+    flowEl.innerHTML = '<span style="color:#484f58;font-size:10px">에이전트를 2명 이상 순서대로 선택하세요</span>';
+    return;
+  }
+  const flow = collabSelectedAgents.map(id => {
+    const a = AGENT_CFG.find(c => c.id === id);
+    return `<span style="color:${a.color};font-weight:600">${a.name}</span>`;
+  }).join(' <span class="collab-flow-arrow">→</span> ');
+  flowEl.innerHTML = flow;
+}
+
+function triggerCanvasCollab(agentIds) {
+  // 협업 에이전트들만 회의실 2로 이동
+  const mr = MR[1]; // Meeting Room 2 사용
+  agentIds.forEach((id, i) => {
+    const agent = agents.find(a => a.id === id);
+    if (!agent || i >= mr.seats.length) return;
+    agent.seatIdx = i;
+    agent.mrIdx = 1;
+    agent.state = 'toMeeting';
+    agent.setTarget(mr.seats[i].x, mr.seats[i].y);
+    agent.statusText = '협업 이동 중';
+    setAgentLiveStatus(agent.id, 'walking');
+  });
+}
+
+function endCanvasCollab(agentIds) {
+  agentIds.forEach(id => {
+    const agent = agents.find(a => a.id === id);
+    if (!agent) return;
+    if (agent.state === 'inMeeting' || agent.state === 'toMeeting') {
+      agent.state = 'returning';
+      agent.setTarget(agent.hx, agent.hy);
+      agent.statusText = '자리로 복귀 중';
+      agent.seatIdx = -1;
+      agent.mrIdx = -1;
+      setAgentLiveStatus(agent.id, 'walking');
+    }
+  });
+}
+
 function handleWSMessage(msg) {
   switch (msg.type) {
     case 'stream_start': {
@@ -1624,7 +1730,6 @@ function handleWSMessage(msg) {
       isStreaming = true;
       document.getElementById('chat-send').disabled = true;
       [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'meeting'));
-      // 캔버스: 5명 전원 회의실로 이동
       triggerCanvasMeeting();
       break;
     }
@@ -1633,8 +1738,22 @@ function handleWSMessage(msg) {
       document.getElementById('chat-send').disabled = false;
       document.getElementById('chat-input').focus();
       [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'idle'));
-      // 캔버스: 전원 자리 복귀
       endCanvasMeeting();
+      break;
+    }
+    case 'collab_start': {
+      isStreaming = true;
+      document.getElementById('chat-send').disabled = true;
+      (msg.agentIds || []).forEach(id => setAgentLiveStatus(id, 'meeting'));
+      triggerCanvasCollab(msg.agentIds || []);
+      break;
+    }
+    case 'collab_end': {
+      isStreaming = false;
+      document.getElementById('chat-send').disabled = false;
+      document.getElementById('chat-input').focus();
+      (msg.agentIds || []).forEach(id => setAgentLiveStatus(id, 'idle'));
+      endCanvasCollab(msg.agentIds || []);
       break;
     }
     case 'tool_activity': {
@@ -1695,7 +1814,18 @@ function sendMessage() {
   isStreaming = true;
   document.getElementById('chat-send').disabled = true;
 
-  if (currentChatAgent === -1) {
+  if (currentChatAgent === -2) {
+    // 협업 모드
+    if (collabSelectedAgents.length < 2) {
+      alert('협업할 에이전트를 2명 이상 선택하세요.');
+      isStreaming = false;
+      document.getElementById('chat-send').disabled = false;
+      return;
+    }
+    const names = collabSelectedAgents.map(id => AGENT_CFG.find(a => a.id === id)?.name).join(' → ');
+    ws.send(JSON.stringify({ type: 'collaboration', agents: [...collabSelectedAgents], instruction: text }));
+    addMinutesEntry({ type: 'instruction', agentId: -2, agentName: '협업', content: `[협업 지시: ${names}] ${text}` });
+  } else if (currentChatAgent === -1) {
     ws.send(JSON.stringify({ type: 'meeting', content: text }));
     addMinutesEntry({ type: 'instruction', agentId: -1, agentName: '전체 회의', content: `[사용자 → 전체] ${text}` });
   } else {

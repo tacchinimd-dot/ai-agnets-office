@@ -66,6 +66,8 @@ wss.on('connection', (ws) => {
       await handleChat(ws, agentId, content);
     } else if (type === 'meeting') {
       await handleMeeting(ws, content);
+    } else if (type === 'collaboration') {
+      await handleCollaboration(ws, msg);
     } else if (type === 'approval_response') {
       handleApprovalResponse(ws, msg);
     }
@@ -750,6 +752,125 @@ async function handleMeeting(ws, userMessage) {
   }
 
   ws.send(JSON.stringify({ type: 'meeting_end' }));
+}
+
+// ── 에이전트 간 협업 (Agent-to-Agent Collaboration) ──────────────────────────
+
+async function handleCollaboration(ws, msg) {
+  const { agents: agentIds, instruction } = msg;
+  // agentIds: [fromId, toId] 또는 [a, b, c] (다자 협업)
+
+  if (!agentIds || agentIds.length < 2) {
+    ws.send(JSON.stringify({ type: 'error', message: '협업에는 최소 2명의 에이전트가 필요합니다' }));
+    return;
+  }
+
+  ws.send(JSON.stringify({ type: 'collab_start', agentIds }));
+
+  const collabResponses = [];
+
+  for (let i = 0; i < agentIds.length; i++) {
+    const agentId = agentIds[i];
+    const agent = getAgent(agentId);
+    if (!agent) continue;
+
+    // 컨텍스트 구성: 사용자 지시 + 이전 에이전트들의 결과
+    let collabContext;
+    if (i === 0) {
+      // 첫 번째 에이전트: 사용자 지시만
+      collabContext = `[협업 요청] 사용자 지시: "${instruction}"\n\n당신의 전문 분야 관점에서 분석해주세요. 이 결과는 다음 담당자(${agentIds.slice(1).map(id => getAgent(id)?.name).join(', ')})에게 전달됩니다. 핵심 데이터와 인사이트를 명확히 정리해주세요.`;
+    } else {
+      // 후속 에이전트: 이전 에이전트 결과 + 사용자 지시
+      collabContext = `[협업 요청] 사용자 지시: "${instruction}"\n\n[이전 담당자 분석 결과]\n` +
+        collabResponses.map(r => `━━ ${r.name} (${r.role}) ━━\n${r.content}`).join('\n\n') +
+        `\n\n위 분석 결과를 바탕으로, 당신의 전문 분야 관점에서 후속 분석 또는 실행 방안을 제시해주세요. 도구를 사용하여 데이터를 조회할 수 있습니다.`;
+    }
+
+    addMessage(agentId, 'user', collabContext);
+    appendChatLog(agentId, '협업 요청', collabContext.slice(0, 200));
+    logUserInstruction(agentId, `[협업] ${instruction.slice(0, 60)}`);
+
+    ws.send(JSON.stringify({ type: 'stream_start', agentId, agentName: agent.name }));
+
+    try {
+      let fullResponse = '';
+      let loopCount = 0;
+      const maxLoops = 4;
+      const tools = getToolsForAgent(agentId);
+
+      while (loopCount < maxLoops) {
+        loopCount++;
+        const messages = getConversation(agentId);
+
+        const apiParams = {
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          system: agent.systemPrompt + '\n\n[협업 모드] 다른 에이전트와 협업 중입니다. 도구를 적극 활용하여 데이터에 기반한 분석을 제공하세요. 핵심 수치와 인사이트를 명확히 정리하세요.',
+          messages,
+        };
+
+        if (tools) apiParams.tools = tools;
+
+        const stream = anthropic.messages.stream(apiParams);
+        let turnText = '';
+        let toolUseBlocks = [];
+
+        stream.on('text', (text) => {
+          turnText += text;
+          ws.send(JSON.stringify({ type: 'stream_delta', agentId, delta: text }));
+        });
+
+        const finalMessage = await stream.finalMessage();
+
+        for (const block of finalMessage.content) {
+          if (block.type === 'tool_use') toolUseBlocks.push(block);
+        }
+
+        if (toolUseBlocks.length === 0) {
+          fullResponse += turnText;
+          break;
+        }
+
+        addMessage(agentId, 'assistant', finalMessage.content);
+        ws.send(JSON.stringify({ type: 'stream_delta', agentId, delta: '\n\n📊 *데이터 조회 중...*\n\n' }));
+        fullResponse += turnText + '\n\n📊 *데이터 조회 중...*\n\n';
+
+        const toolResults = [];
+        for (const toolBlock of toolUseBlocks) {
+          try {
+            const result = await executeTool(toolBlock.name, toolBlock.input);
+            toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: result });
+            sendToolActivity(ws, agentId, agent.name, toolBlock.name, toolBlock.input, result, true);
+            logToolUse(agentId, toolBlock.name, TOOL_LABELS[toolBlock.name] || toolBlock.name);
+          } catch (err) {
+            toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: `오류: ${err.message}`, is_error: true });
+          }
+        }
+        addMessage(agentId, 'user', toolResults);
+      }
+
+      const lastMsg = getConversation(agentId).at(-1);
+      if (!lastMsg || lastMsg.role !== 'assistant') {
+        addMessage(agentId, 'assistant', fullResponse);
+      }
+
+      appendChatLog(agentId, agent.name, fullResponse);
+      updateAgentStatus(agentId);
+
+      if (agentId === 0 && fullResponse.includes('[결재요청]')) {
+        sendApprovalRequests(ws, agentId, agent.name, fullResponse);
+      }
+
+      collabResponses.push({ id: agentId, name: agent.name, role: agent.role, content: fullResponse });
+      ws.send(JSON.stringify({ type: 'stream_end', agentId }));
+
+    } catch (err) {
+      console.error(`[Collab Error] ${agent.name}:`, err.message);
+      ws.send(JSON.stringify({ type: 'error', agentId, message: `${agent.name} 협업 오류: ${err.message}` }));
+    }
+  }
+
+  ws.send(JSON.stringify({ type: 'collab_end', agentIds }));
 }
 
 // ── 서버 시작 ────────────────────────────────────────────────────────────────
