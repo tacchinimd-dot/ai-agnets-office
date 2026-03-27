@@ -454,71 +454,18 @@ class Agent {
 
     switch(this.state) {
       case 'idle': {
-        this.idleTimer--;
-        if (this.idleTimer <= 0) {
-          const base = this.id===0 ? 700+Math.random()*300 : 500+Math.random()*200;
-          const meetChance = this.id===0 ? 0.06 : 0.12;
-          if (Math.random() < meetChance) {
-            const cands = agents.filter(a => a.id!==this.id && a.state==='idle');
-            if (cands.length > 0) {
-              const partner = cands[Math.floor(Math.random()*cands.length)];
-              const mrIdx = Math.floor(Math.random()*2);
-              const mr = MR[mrIdx];
-              const used = agents.filter(a=>a.mrIdx===mrIdx&&a.seatIdx>=0).map(a=>a.seatIdx);
-              let sA=-1, sB=-1;
-              for (let i=0;i<mr.seats.length;i++) {
-                if (!used.includes(i)) { if(sA===-1) sA=i; else if(sB===-1){sB=i;break;} }
-              }
-              if (sA!==-1&&sB!==-1) {
-                this.seatIdx=sA; this.mrIdx=mrIdx; this.partner=partner; this.state='visit';
-                this.setTarget(mr.seats[sA].x, mr.seats[sA].y); this.statusText='회의실 이동 중'; setAgentLiveStatus(this.id, 'walking');
-                partner.seatIdx=sB; partner.mrIdx=mrIdx; partner.partner=this; partner.state='hosting';
-                partner.setTarget(mr.seats[sB].x, mr.seats[sB].y); partner.statusText='회의실 이동 중'; setAgentLiveStatus(partner.id, 'walking');
-              } else { this.idleTimer=base; this.statusText='업무 중'; }
-            } else { this.idleTimer=base; this.statusText='업무 중'; }
-          } else {
-            this.idleTimer = base; this.statusText = '업무 중';
-          }
-        }
+        // 랜덤 회의 없음 — 채팅 이벤트에 의해서만 이동
         break;
       }
-      case 'visit': case 'hosting': {
+      case 'toMeeting': {
         this.moveToward();
         if (this.arrivedAtTarget()) {
-          // 파트너가 아직 이동 중이면 도착 후 대기 (meetingTimer 시작하지 않음)
-          const p = this.partner;
-          if (p && (p.state === 'visit' || p.state === 'hosting')) {
-            this.state = 'waiting'; this.statusText = '파트너 대기 중'; setAgentLiveStatus(this.id, 'meeting');
-          } else {
-            // 파트너가 이미 대기 중이면 둘 다 meeting 시작
-            const sharedTimer = 300 + Math.floor(Math.random()*200);
-            this.state = 'meeting'; this.meetingTimer = sharedTimer; this.statusText = '회의 중'; setAgentLiveStatus(this.id, 'meeting');
-            if (p && p.state === 'waiting') { p.state = 'meeting'; p.meetingTimer = sharedTimer; p.statusText = '회의 중'; setAgentLiveStatus(p.id, 'meeting'); }
-          }
+          this.state = 'inMeeting'; this.statusText = '회의 중'; setAgentLiveStatus(this.id, 'meeting');
         }
         break;
       }
-      case 'waiting': {
-        // 파트너가 도착할 때까지 대기 — 파트너가 없거나 이탈하면 복귀
-        const p = this.partner;
-        if (!p || p.state === 'idle' || p.state === 'returning') {
-          this.state='returning'; this.setTarget(this.hx,this.hy); this.statusText='자리로 복귀 중'; this.partner=null; this.seatIdx=-1; this.mrIdx=-1; setAgentLiveStatus(this.id, 'walking');
-        }
-        break;
-      }
-      case 'meeting': {
-        this.meetingTimer--;
-        if (this.meetingTimer <= 0) {
-          const p = this.partner;
-          // 자기 자신 복귀 처리
-          this.state='returning'; this.setTarget(this.hx,this.hy); this.statusText='자리로 복귀 중'; this.seatIdx=-1; this.mrIdx=-1; setAgentLiveStatus(this.id, 'walking');
-          // 파트너도 동시에 복귀 처리 (partner 참조 해제는 양쪽 다 처리한 후)
-          if (p && (p.state==='meeting' || p.state==='waiting')) {
-            p.state='returning'; p.setTarget(p.hx,p.hy); p.statusText='자리로 복귀 중'; p.seatIdx=-1; p.mrIdx=-1; setAgentLiveStatus(p.id, 'walking');
-            p.partner=null;
-          }
-          this.partner=null;
-        }
+      case 'inMeeting': {
+        // 회의 중 대기 — endCanvasMeeting()으로 종료
         break;
       }
       case 'returning': {
@@ -545,6 +492,53 @@ class Agent {
 }
 
 const agents = AGENT_CFG.map(cfg => new Agent(cfg));
+
+// ── Canvas ↔ Chat event bridge ───────────────────────────────────────────────
+
+let activeMeetingRoom = -1; // -1 = 회의 없음, 0 = MR1, 1 = MR2
+
+// 전체 회의: 5명 모두 회의실 1로 이동
+function triggerCanvasMeeting() {
+  if (activeMeetingRoom >= 0) return; // 이미 회의 중
+  activeMeetingRoom = 0;
+  const mr = MR[0];
+  agents.forEach((agent, i) => {
+    if (agent.state === 'returning') { /* 복귀 중이면 방향 전환 */ }
+    agent.seatIdx = i;
+    agent.mrIdx = 0;
+    agent.state = 'toMeeting';
+    agent.setTarget(mr.seats[i].x, mr.seats[i].y);
+    agent.statusText = '회의실 이동 중';
+    setAgentLiveStatus(agent.id, 'walking');
+  });
+}
+
+// 전체 회의 종료: 전원 자리 복귀
+function endCanvasMeeting() {
+  activeMeetingRoom = -1;
+  agents.forEach(agent => {
+    if (agent.state === 'inMeeting' || agent.state === 'toMeeting') {
+      agent.state = 'returning';
+      agent.setTarget(agent.hx, agent.hy);
+      agent.statusText = '자리로 복귀 중';
+      agent.seatIdx = -1;
+      agent.mrIdx = -1;
+      agent.partner = null;
+      setAgentLiveStatus(agent.id, 'walking');
+    }
+  });
+}
+
+// 1:1 대화 시작: 해당 에이전트 모니터에 활성 효과 (chatActiveAgent로 추적)
+let chatActiveAgentId = -1;
+
+function setChatActiveAgent(agentId) {
+  chatActiveAgentId = agentId;
+}
+
+function clearChatActiveAgent() {
+  chatActiveAgentId = -1;
+}
 
 // ── Face (front view) ─────────────────────────────────────────────────────────
 function drawFace(c, cx, cy, agent) {
@@ -853,6 +847,17 @@ function drawWorkstation(c, agent, frame) {
     c.save(); c.globalAlpha=.18; c.shadowColor=agent.color; c.shadowBlur=14;
     roundRect(c, hx-32, hy-114, 64, 52, 4, null, agent.color, 1.5);
     c.globalAlpha=1; c.restore();
+
+    // 1:1 대화 중인 에이전트: 모니터 강조 glow + 말풍선 아이콘
+    if (chatActiveAgentId === agent.id) {
+      const pulse = 0.3 + Math.sin(frame * 0.08) * 0.15;
+      c.save(); c.globalAlpha = pulse; c.shadowColor = agent.color; c.shadowBlur = 28;
+      roundRect(c, hx-34, hy-116, 68, 56, 5, null, agent.color, 2.5);
+      c.globalAlpha = 1; c.restore();
+      // 말풍선 아이콘
+      c.font = '14px Segoe UI'; c.textAlign = 'center';
+      c.fillText('💬', hx+38, hy-100);
+    }
   } else {
     // Screen dim when agent is away
     c.fillStyle='rgba(5,5,20,0.9)'; c.fillRect(hx-29, hy-111, 58, 46);
@@ -909,11 +914,17 @@ function drawWorkstation(c, agent, frame) {
     for (const lx of [hx-14, hx+14]) {
       c.beginPath(); c.moveTo(lx,hy+14); c.lineTo(lx,hy+24); c.stroke();
     }
-    // 부재중 badge
+    // 부재중 / 회의 중 badge
     c.font='bold 11px Segoe UI'; c.textAlign='center';
-    roundRect(c, hx-30, hy-10, 60, 22, 8, 'rgba(220,50,50,0.88)', 'rgba(255,120,120,0.5)', 1);
-    c.fillStyle='#fff';
-    c.fillText('부재중', hx, hy+5);
+    if (agent.state === 'toMeeting' || agent.state === 'inMeeting') {
+      roundRect(c, hx-30, hy-10, 60, 22, 8, 'rgba(100,60,200,0.88)', 'rgba(180,140,255,0.5)', 1);
+      c.fillStyle='#fff';
+      c.fillText('회의 중', hx, hy+5);
+    } else {
+      roundRect(c, hx-30, hy-10, 60, 22, 8, 'rgba(220,50,50,0.88)', 'rgba(255,120,120,0.5)', 1);
+      c.fillStyle='#fff';
+      c.fillText('부재중', hx, hy+5);
+    }
   }
 }
 
@@ -1009,17 +1020,23 @@ function drawCeiling(c) {
 
 // ── Meeting lines ─────────────────────────────────────────────────────────────
 function drawMeetingLines(c) {
-  const drawn=new Set();
-  agents.filter(a=>a.state==='meeting'&&a.partner).forEach(a=>{
-    if (!a.partner) return;
-    const key=[a.id,a.partner.id].sort().join('-');
-    if (drawn.has(key)) return; drawn.add(key);
-    c.save(); c.setLineDash([6,4]); c.lineWidth=1.8;
-    const gr=c.createLinearGradient(a.x,a.y,a.partner.x,a.partner.y);
-    gr.addColorStop(0,a.color+'aa'); gr.addColorStop(1,a.partner.color+'aa');
-    c.strokeStyle=gr; c.beginPath(); c.moveTo(a.x,a.y-22); c.lineTo(a.partner.x,a.partner.y-22); c.stroke();
-    c.setLineDash([]); c.restore();
-  });
+  // 전체 회의 모드: inMeeting 상태인 에이전트들 사이에 점선 연결
+  const inMeeting = agents.filter(a => a.state === 'inMeeting');
+  if (inMeeting.length >= 2) {
+    const drawn = new Set();
+    for (let i = 0; i < inMeeting.length; i++) {
+      for (let j = i + 1; j < inMeeting.length; j++) {
+        const a = inMeeting[i], b = inMeeting[j];
+        const key = a.id + '-' + b.id;
+        if (drawn.has(key)) continue; drawn.add(key);
+        c.save(); c.setLineDash([6, 4]); c.lineWidth = 1.2; c.globalAlpha = 0.4;
+        const gr = c.createLinearGradient(a.x, a.y, b.x, b.y);
+        gr.addColorStop(0, a.color + 'aa'); gr.addColorStop(1, b.color + 'aa');
+        c.strokeStyle = gr; c.beginPath(); c.moveTo(a.x, a.y - 22); c.lineTo(b.x, b.y - 22); c.stroke();
+        c.setLineDash([]); c.globalAlpha = 1; c.restore();
+      }
+    }
+  }
 }
 
 // ── UI Panel ──────────────────────────────────────────────────────────────────
@@ -1454,6 +1471,8 @@ function handleWSMessage(msg) {
       const msgs = chatHistories[target];
       msgs.push({ role: 'agent', agentId: msg.agentId, name: msg.agentName, content: '', streaming: true });
       setAgentLiveStatus(msg.agentId, 'responding');
+      // 1:1 대화: 해당 에이전트 모니터 활성 효과
+      setChatActiveAgent(msg.agentId);
       renderMessages();
       break;
     }
@@ -1467,6 +1486,7 @@ function handleWSMessage(msg) {
       if (last && last.streaming) last.streaming = false;
       isStreaming = false;
       setAgentLiveStatus(msg.agentId, 'idle');
+      clearChatActiveAgent();
       document.getElementById('chat-send').disabled = false;
       document.getElementById('chat-input').focus();
       renderMessages();
@@ -1475,8 +1495,9 @@ function handleWSMessage(msg) {
     case 'meeting_start': {
       isStreaming = true;
       document.getElementById('chat-send').disabled = true;
-      // 전체 에이전트를 회의 상태로
       [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'meeting'));
+      // 캔버스: 5명 전원 회의실로 이동
+      triggerCanvasMeeting();
       break;
     }
     case 'meeting_end': {
@@ -1484,6 +1505,8 @@ function handleWSMessage(msg) {
       document.getElementById('chat-send').disabled = false;
       document.getElementById('chat-input').focus();
       [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'idle'));
+      // 캔버스: 전원 자리 복귀
+      endCanvasMeeting();
       break;
     }
     case 'tool_activity': {
