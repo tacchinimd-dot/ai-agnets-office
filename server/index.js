@@ -62,11 +62,11 @@ wss.on('connection', (ws) => {
     const { type, agentId, content } = msg;
 
     if (type === 'chat') {
-      // 1:1 대화
       await handleChat(ws, agentId, content);
     } else if (type === 'meeting') {
-      // 전체 회의 — 5명 순차 응답
       await handleMeeting(ws, content);
+    } else if (type === 'approval_response') {
+      handleApprovalResponse(ws, msg);
     }
   });
 
@@ -322,6 +322,11 @@ async function handleChat(ws, agentId, userMessage) {
       addMessage(agentId, 'assistant', fullResponse);
     }
 
+    // CEO 결재 요청 파싱
+    if (agentId === 0 && fullResponse.includes('[결재요청]')) {
+      sendApprovalRequests(ws, agentId, agent.name, fullResponse);
+    }
+
     ws.send(JSON.stringify({ type: 'stream_end', agentId }));
 
   } catch (err) {
@@ -332,6 +337,60 @@ async function handleChat(ws, agentId, userMessage) {
       message: `API 오류: ${err.message}`
     }));
   }
+}
+
+// ── 결재 시스템 ─────────────────────────────────────────────────────────────
+
+let approvalIdCounter = 0;
+
+function parseApprovalRequests(text) {
+  const requests = [];
+  const regex = /\[결재요청\]\s*\n제목:\s*(.+?)\n내용:\s*([\s\S]+?)\n근거:\s*([\s\S]+?)\n\[\/결재요청\]/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    requests.push({
+      title: match[1].trim(),
+      description: match[2].trim(),
+      context: match[3].trim(),
+    });
+  }
+  return requests;
+}
+
+function sendApprovalRequests(ws, agentId, agentName, responseText) {
+  const requests = parseApprovalRequests(responseText);
+  for (const req of requests) {
+    const id = `approval_${++approvalIdCounter}_${Date.now()}`;
+    ws.send(JSON.stringify({
+      type: 'approval_request',
+      id,
+      agentId,
+      agentName,
+      title: req.title,
+      description: req.description,
+      context: req.context,
+      timestamp: new Date().toISOString(),
+    }));
+    console.log(`[Approval] ${agentName} → "${req.title}"`);
+  }
+}
+
+function handleApprovalResponse(ws, msg) {
+  const { approvalId, decision, comment } = msg;
+  console.log(`[Approval Response] ${approvalId} → ${decision} (${comment || ''})`);
+
+  // CEO 에이전트에게 결재 결과 피드백
+  const feedback = decision === 'approved'
+    ? `[시스템 알림: 결재 승인됨] 결재가 승인되었습니다. ${comment ? '코멘트: ' + comment : '후속 조치를 안내해주세요.'}`
+    : `[시스템 알림: 결재 반려됨] 결재가 반려되었습니다. 사유: ${comment || '사유 없음'}. 대안을 제시해주세요.`;
+  addMessage(0, 'user', feedback);
+
+  ws.send(JSON.stringify({
+    type: 'approval_resolved',
+    approvalId,
+    decision,
+    timestamp: new Date().toISOString(),
+  }));
 }
 
 // ── 결과물 패널용 tool_activity 전송 ─────────────────────────────────────────
@@ -537,6 +596,11 @@ async function handleMeeting(ws, userMessage) {
       const lastMsg = getConversation(agentId).at(-1);
       if (!lastMsg || lastMsg.role !== 'assistant') {
         addMessage(agentId, 'assistant', fullResponse);
+      }
+
+      // CEO 결재 요청 파싱
+      if (agentId === 0 && fullResponse.includes('[결재요청]')) {
+        sendApprovalRequests(ws, agentId, agent.name, fullResponse);
       }
 
       allResponses.push({ name: agent.name, role: agent.role, content: fullResponse });

@@ -128,85 +128,124 @@
     border-color: #30363d;
   }
 
-  /* ── Results Panel ── */
-  #results-panel {
+  /* ── Minutes Panel (회의록) ── */
+  #minutes-panel {
     flex: 1; overflow-y: auto; padding: 12px; display: none;
-    flex-direction: column; gap: 10px;
+    flex-direction: column; gap: 8px;
     scrollbar-width: thin; scrollbar-color: #30363d #0d1117;
   }
-  #results-panel::-webkit-scrollbar { width: 6px; }
-  #results-panel::-webkit-scrollbar-track { background: #0d1117; }
-  #results-panel::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
-
-  .results-empty {
-    color: #8b949e; text-align: center; padding: 60px 20px; font-size: 13px; line-height: 1.8;
-  }
-  .results-empty .empty-icon { font-size: 36px; margin-bottom: 12px; }
-
-  /* Agent group in results */
-  .result-agent-group { margin-bottom: 8px; }
-  .result-agent-header {
-    display: flex; align-items: center; gap: 8px; padding: 6px 0;
-    font-size: 12px; font-weight: 700; color: #c9d1d9;
-    border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 6px;
-  }
-  .result-agent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-
-  .result-card {
-    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
-    padding: 10px 12px; margin-bottom: 6px;
-    animation: msgIn .2s ease-out; cursor: pointer;
-    transition: border-color .15s, background .15s;
-  }
-  .result-card:hover { border-color: #30363d; background: #1c2128; }
-  .result-card.error { border-left: 3px solid #f85149; }
-  .result-card.success { border-left: 3px solid #3fb950; }
-
-  .result-card-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 6px;
-  }
-  .result-tool-label { font-size: 13px; font-weight: 600; color: #e6edf3; }
-  .result-time { font-size: 10px; color: #484f58; }
-
-  .result-input {
-    font-size: 11px; color: #8b949e; margin-bottom: 6px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .result-preview {
-    font-size: 12px; color: #adbac7; line-height: 1.5;
-    padding: 6px 8px; background: rgba(0,0,0,0.2); border-radius: 4px;
-  }
-  .result-size {
-    font-size: 10px; color: #484f58; margin-top: 4px; text-align: right;
-  }
-
-  .result-card-detail {
-    display: none; margin-top: 8px; padding-top: 8px;
-    border-top: 1px solid #21262d;
-  }
-  .result-card.expanded .result-card-detail { display: block; }
-
-  /* Results filter */
-  #results-filter {
-    display: flex; gap: 4px; padding: 8px 12px; background: #0d1117;
+  #minutes-panel::-webkit-scrollbar { width: 6px; }
+  #minutes-panel::-webkit-scrollbar-track { background: #0d1117; }
+  #minutes-panel::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  #minutes-filter {
+    display: none; gap: 4px; padding: 8px 12px; background: #0d1117;
     border-bottom: 1px solid #21262d; flex-wrap: wrap;
   }
-  .results-filter-btn {
+  .minutes-filter-btn {
     padding: 3px 8px; font-size: 10px; color: #8b949e;
     background: transparent; border: 1px solid #21262d; border-radius: 12px;
     cursor: pointer; font-family: 'Segoe UI', sans-serif; transition: all .15s;
   }
-  .results-filter-btn:hover { color: #c9d1d9; border-color: #30363d; }
-  .results-filter-btn.active { color: #f0f6fc; background: #21262d; border-color: #30363d; }
+  .minutes-filter-btn:hover { color: #c9d1d9; border-color: #30363d; }
+  .minutes-filter-btn.active { color: #f0f6fc; background: #21262d; border-color: #30363d; }
 
-  /* Results count badge */
-  .results-badge {
+  .minutes-empty {
+    color: #8b949e; text-align: center; padding: 60px 20px; font-size: 13px; line-height: 1.8;
+  }
+  .minutes-entry {
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+    padding: 10px 12px; animation: msgIn .2s ease-out;
+    transition: border-color .15s;
+  }
+  .minutes-entry:hover { border-color: #30363d; }
+  .minutes-entry.type-instruction { border-left: 3px solid #58a6ff; }
+  .minutes-entry.type-chat { border-left: 3px solid #3fb950; }
+  .minutes-entry.type-meeting { border-left: 3px solid #bc8cff; }
+  .minutes-entry.type-tool_use { border-left: 3px solid #d29922; }
+
+  .minutes-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;
+  }
+  .minutes-agent { display: flex; align-items: center; gap: 5px; }
+  .minutes-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .minutes-name { font-size: 12px; font-weight: 700; }
+  .minutes-type {
+    font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 8px;
+    background: rgba(255,255,255,0.06); color: #8b949e;
+  }
+  .minutes-type.t-instruction { background: #58a6ff22; color: #58a6ff; }
+  .minutes-type.t-chat { background: #3fb95022; color: #3fb950; }
+  .minutes-type.t-meeting { background: #bc8cff22; color: #bc8cff; }
+  .minutes-type.t-tool_use { background: #d2992222; color: #d29922; }
+  .minutes-time { font-size: 10px; color: #484f58; }
+  .minutes-content {
+    font-size: 12px; color: #adbac7; line-height: 1.5; margin-top: 4px;
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  }
+  .minutes-entry.expanded .minutes-content { -webkit-line-clamp: unset; }
+  .minutes-data-ref {
+    display: inline-block; font-size: 10px; padding: 1px 5px; margin: 3px 2px 0 0;
+    border-radius: 6px; background: rgba(210,153,34,0.12); color: #d29922; border: 1px solid #d2992233;
+  }
+
+  /* ── Approval Panel (결재 대기) ── */
+  #approval-panel {
+    flex: 1; overflow-y: auto; padding: 12px; display: none;
+    flex-direction: column; gap: 10px;
+    scrollbar-width: thin; scrollbar-color: #30363d #0d1117;
+  }
+  #approval-panel::-webkit-scrollbar { width: 6px; }
+  #approval-panel::-webkit-scrollbar-track { background: #0d1117; }
+  #approval-panel::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  .approval-empty {
+    color: #8b949e; text-align: center; padding: 60px 20px; font-size: 13px; line-height: 1.8;
+  }
+  .approval-card {
+    background: #161b22; border: 1px solid #21262d; border-radius: 10px;
+    padding: 14px; animation: msgIn .2s ease-out;
+  }
+  .approval-card.pending { border-color: #d29922; border-left: 4px solid #d29922; }
+  .approval-card.approved { border-color: #238636; border-left: 4px solid #3fb950; opacity: 0.7; }
+  .approval-card.rejected { border-color: #da3633; border-left: 4px solid #f85149; opacity: 0.7; }
+  .approval-card-header {
+    display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;
+  }
+  .approval-title { font-size: 14px; font-weight: 700; color: #e6edf3; }
+  .approval-status {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px;
+  }
+  .approval-status.s-pending { background: #d2992233; color: #d29922; }
+  .approval-status.s-approved { background: #3fb95033; color: #3fb950; }
+  .approval-status.s-rejected { background: #f8514933; color: #f85149; }
+  .approval-desc {
+    font-size: 12px; color: #adbac7; line-height: 1.6; margin-bottom: 8px;
+  }
+  .approval-context {
+    font-size: 11px; color: #8b949e; line-height: 1.5; padding: 8px 10px;
+    background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 10px;
+    border-left: 2px solid #30363d;
+  }
+  .approval-time { font-size: 10px; color: #484f58; margin-bottom: 8px; }
+  .approval-actions { display: flex; gap: 8px; }
+  .approval-btn {
+    flex: 1; padding: 8px; border: none; border-radius: 6px; font-size: 12px;
+    font-weight: 600; cursor: pointer; font-family: 'Segoe UI', sans-serif; transition: all .15s;
+  }
+  .approval-btn.approve { background: #238636; color: #fff; }
+  .approval-btn.approve:hover { background: #2ea043; }
+  .approval-btn.reject { background: #21262d; color: #f85149; border: 1px solid #da3633; }
+  .approval-btn.reject:hover { background: #da363322; }
+  .approval-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Panel badge */
+  .panel-badge {
     display: inline-block; min-width: 16px; height: 16px; line-height: 16px;
     padding: 0 5px; font-size: 10px; font-weight: 700; text-align: center;
-    background: #388bfd; color: #fff; border-radius: 8px; margin-left: 4px;
+    border-radius: 8px; margin-left: 3px;
   }
-  .results-badge.empty { background: transparent; }
+  .panel-badge.empty { background: transparent; color: transparent; }
+  .panel-badge.minutes-count { background: #388bfd; color: #fff; }
+  .panel-badge.approval-count { background: #d29922; color: #fff; }
 
   /* ── Tooltip ── */
   #tooltip {
@@ -245,8 +284,9 @@
   </div>
   <div id="chat-panel">
     <div id="panel-mode-toggle">
-      <button class="panel-mode-btn active" onclick="setPanelMode('chat')">💬 채팅</button>
-      <button class="panel-mode-btn" onclick="setPanelMode('results')">📊 결과물<span id="results-badge" class="results-badge empty"></span></button>
+      <button class="panel-mode-btn active" data-mode="chat" onclick="setPanelMode('chat')">💬 채팅</button>
+      <button class="panel-mode-btn" data-mode="minutes" onclick="setPanelMode('minutes')">📋 회의록<span id="minutes-badge" class="panel-badge empty"></span></button>
+      <button class="panel-mode-btn" data-mode="approval" onclick="setPanelMode('approval')">🔔 결재<span id="approval-badge" class="panel-badge empty"></span></button>
     </div>
     <div id="chat-tabs"></div>
     <div id="chat-header">
@@ -257,8 +297,9 @@
       <button id="chat-clear-btn" onclick="clearChat()">대화 초기화</button>
     </div>
     <div id="chat-messages"></div>
-    <div id="results-filter"></div>
-    <div id="results-panel"></div>
+    <div id="minutes-filter"></div>
+    <div id="minutes-panel"></div>
+    <div id="approval-panel"></div>
     <div id="chat-input-area">
       <textarea id="chat-input" placeholder="메시지를 입력하세요... (Enter로 전송, Shift+Enter 줄바꿈)" rows="1"></textarea>
       <button id="chat-send" onclick="sendMessage()">전송</button>
@@ -1326,142 +1367,218 @@ function connectWS() {
   }
 }
 
-// ── Results Panel (결과물 패널) ──────────────────────────────────────────────
+// ── Minutes Panel (회의록) & Approval Panel (결재 대기) ──────────────────────
 
-let panelMode = 'chat'; // 'chat' | 'results'
-const toolActivities = []; // [{agentId, agentName, toolName, toolLabel, inputSummary, preview, success, resultSize, timestamp}]
-let resultsFilter = 'all'; // 'all' | agentId
+let panelMode = 'chat'; // 'chat' | 'minutes' | 'approval'
+const minutesEntries = []; // max 200
+let minutesFilter = 'all'; // 'all' | 'instruction' | 'chat' | 'meeting' | 'tool_use' | agentId(number)
+const approvalRequests = [];
+let minutesIdCounter = 0;
 
-function setPanelMode(mode) {
-  panelMode = mode;
-  // 토글 버튼 업데이트
-  document.querySelectorAll('.panel-mode-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', (i === 0 && mode === 'chat') || (i === 1 && mode === 'results'));
-  });
-
-  const chatTabs = document.getElementById('chat-tabs');
-  const chatHeader = document.getElementById('chat-header');
-  const chatMessages = document.getElementById('chat-messages');
-  const chatInput = document.getElementById('chat-input-area');
-  const resultsPanel = document.getElementById('results-panel');
-  const resultsFilterEl = document.getElementById('results-filter');
-
-  if (mode === 'chat') {
-    chatTabs.style.display = '';
-    chatHeader.style.display = '';
-    chatMessages.style.display = '';
-    chatInput.style.display = '';
-    resultsPanel.style.display = 'none';
-    resultsFilterEl.style.display = 'none';
-  } else {
-    chatTabs.style.display = 'none';
-    chatHeader.style.display = 'none';
-    chatMessages.style.display = 'none';
-    chatInput.style.display = 'none';
-    resultsPanel.style.display = 'flex';
-    resultsFilterEl.style.display = 'flex';
-    renderResultsFilter();
-    renderResults();
-  }
-}
-
-function addToolActivity(data) {
-  toolActivities.unshift(data); // 최신이 위로
-  // 뱃지 업데이트
-  const badge = document.getElementById('results-badge');
-  badge.textContent = toolActivities.length;
-  badge.classList.remove('empty');
-
-  if (panelMode === 'results') {
-    renderResults();
-  }
-}
-
-function renderResultsFilter() {
-  const filterEl = document.getElementById('results-filter');
-  // 활동이 있는 에이전트만 필터 표시
-  const agentIds = [...new Set(toolActivities.map(a => a.agentId))];
-  const agentMap = {};
-  toolActivities.forEach(a => { agentMap[a.agentId] = a.agentName; });
-
-  let html = `<button class="results-filter-btn ${resultsFilter === 'all' ? 'active' : ''}" onclick="setResultsFilter('all')">전체</button>`;
-  agentIds.forEach(id => {
-    const agent = AGENT_CFG.find(a => a.id === id);
-    const color = agent ? agent.color : '#888';
-    html += `<button class="results-filter-btn ${resultsFilter === id ? 'active' : ''}" onclick="setResultsFilter(${id})">
-      <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${color};margin-right:3px;vertical-align:middle"></span>${agentMap[id]}
-    </button>`;
-  });
-  filterEl.innerHTML = html;
-}
-
-function setResultsFilter(filter) {
-  resultsFilter = filter;
-  renderResultsFilter();
-  renderResults();
-}
-
-function renderResults() {
-  const panel = document.getElementById('results-panel');
-
-  const filtered = resultsFilter === 'all'
-    ? toolActivities
-    : toolActivities.filter(a => a.agentId === resultsFilter);
-
-  if (filtered.length === 0) {
-    panel.innerHTML = `<div class="results-empty">
-      <div class="empty-icon">📊</div>
-      <div style="font-size:15px; font-weight:600; color:#c9d1d9; margin-bottom:8px">결과물이 없습니다</div>
-      <div>에이전트가 데이터를 조회하면<br>여기에 결과가 표시됩니다.</div>
-    </div>`;
-    return;
-  }
-
-  // 에이전트별 그룹핑 (필터가 all일 때) 또는 단일 리스트
-  let html = '';
-
-  if (resultsFilter === 'all') {
-    // 시간순 단일 리스트
-    filtered.forEach((act, idx) => {
-      html += buildResultCard(act, idx);
-    });
-  } else {
-    filtered.forEach((act, idx) => {
-      html += buildResultCard(act, idx);
-    });
-  }
-
-  panel.innerHTML = html;
-}
-
-function buildResultCard(act, idx) {
-  const agent = AGENT_CFG.find(a => a.id === act.agentId);
-  const color = agent ? agent.color : '#888';
-  const time = new Date(act.timestamp);
-  const timeStr = time.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const sizeStr = act.resultSize > 1024 ? (act.resultSize / 1024).toFixed(1) + 'KB' : act.resultSize + 'B';
-
-  return `<div class="result-card ${act.success ? 'success' : 'error'}" onclick="toggleResultDetail(this)">
-    <div class="result-card-header">
-      <div style="display:flex;align-items:center;gap:6px">
-        <span class="result-agent-dot" style="background:${color}"></span>
-        <span style="font-size:11px;color:${color};font-weight:600">${act.agentName}</span>
-        <span class="result-tool-label">${act.toolLabel}</span>
-      </div>
-      <span class="result-time">${timeStr}</span>
-    </div>
-    <div class="result-input" title="${escapeHtml(act.inputSummary)}">→ ${escapeHtml(act.inputSummary)}</div>
-    <div class="result-preview">${escapeHtml(act.preview)}</div>
-    ${act.success ? `<div class="result-size">${sizeStr}</div>` : ''}
-  </div>`;
-}
+const MINUTES_TYPE_LABELS = {
+  instruction: '📝 사용자 지시',
+  chat: '💬 1:1 대화',
+  meeting: '🏢 회의 발언',
+  tool_use: '📊 데이터 조회',
+};
 
 function escapeHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function toggleResultDetail(el) {
-  el.classList.toggle('expanded');
+// ── Panel mode ──
+
+function setPanelMode(mode) {
+  panelMode = mode;
+  document.querySelectorAll('.panel-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  const show = (id, v) => { const el = document.getElementById(id); if (el) el.style.display = v ? '' : 'none'; };
+  show('chat-tabs', mode === 'chat');
+  show('chat-header', mode === 'chat');
+  show('chat-messages', mode === 'chat');
+  show('chat-input-area', mode === 'chat');
+  show('minutes-filter', mode === 'minutes');
+  show('minutes-panel', mode === 'minutes');
+  show('approval-panel', mode === 'approval');
+  if (mode === 'minutes') { renderMinutesFilter(); renderMinutes(); }
+  if (mode === 'approval') { renderApprovalPanel(); }
+}
+
+// ── Minutes entries ──
+
+function addMinutesEntry(entry) {
+  entry.id = ++minutesIdCounter;
+  entry.timestamp = entry.timestamp || new Date().toISOString();
+  minutesEntries.unshift(entry);
+  if (minutesEntries.length > 200) minutesEntries.pop();
+  updateMinutesBadge();
+  if (panelMode === 'minutes') renderMinutes();
+}
+
+function updateMinutesBadge() {
+  const badge = document.getElementById('minutes-badge');
+  if (minutesEntries.length > 0) {
+    badge.textContent = minutesEntries.length;
+    badge.className = 'panel-badge minutes-count';
+  } else {
+    badge.textContent = '';
+    badge.className = 'panel-badge empty';
+  }
+}
+
+function renderMinutesFilter() {
+  const el = document.getElementById('minutes-filter');
+  if (!el) return;
+  el.style.display = 'flex';
+  const types = ['all', 'instruction', 'chat', 'meeting', 'tool_use'];
+  const labels = { all: '전체', instruction: '지시', chat: '1:1', meeting: '회의', tool_use: '데이터' };
+  let html = types.map(t =>
+    `<button class="minutes-filter-btn ${minutesFilter === t ? 'active' : ''}" onclick="setMinutesFilter('${t}')">${labels[t]}</button>`
+  ).join('');
+  // 에이전트별 필터
+  const agentIds = [...new Set(minutesEntries.map(e => e.agentId))];
+  agentIds.forEach(id => {
+    const a = AGENT_CFG.find(c => c.id === id);
+    if (!a) return;
+    html += `<button class="minutes-filter-btn ${minutesFilter === id ? 'active' : ''}" onclick="setMinutesFilter(${id})">
+      <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${a.color};margin-right:3px;vertical-align:middle"></span>${a.name}
+    </button>`;
+  });
+  el.innerHTML = html;
+}
+
+function setMinutesFilter(f) {
+  minutesFilter = f;
+  renderMinutesFilter();
+  renderMinutes();
+}
+
+function renderMinutes() {
+  const panel = document.getElementById('minutes-panel');
+  if (!panel) return;
+  panel.style.display = 'flex';
+
+  let filtered = minutesEntries;
+  if (minutesFilter === 'instruction' || minutesFilter === 'chat' || minutesFilter === 'meeting' || minutesFilter === 'tool_use') {
+    filtered = minutesEntries.filter(e => e.type === minutesFilter);
+  } else if (typeof minutesFilter === 'number') {
+    filtered = minutesEntries.filter(e => e.agentId === minutesFilter);
+  }
+
+  if (filtered.length === 0) {
+    panel.innerHTML = `<div class="minutes-empty">
+      <div style="font-size:36px;margin-bottom:12px">📋</div>
+      <div style="font-size:15px;font-weight:600;color:#c9d1d9;margin-bottom:8px">회의록이 비어있습니다</div>
+      <div>에이전트와 대화하면 자동으로 기록됩니다.</div>
+    </div>`;
+    return;
+  }
+
+  panel.innerHTML = filtered.map(e => {
+    const a = AGENT_CFG.find(c => c.id === e.agentId);
+    const color = a ? a.color : '#888';
+    const name = e.agentName || (a ? a.name : '');
+    const time = new Date(e.timestamp).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' });
+    const typeLabel = MINUTES_TYPE_LABELS[e.type] || e.type;
+    const typeCls = 't-' + e.type;
+
+    let content = escapeHtml(e.content || '');
+    let dataRefs = '';
+    if (e.dataReferenced) {
+      dataRefs = e.dataReferenced.split(',').map(d => `<span class="minutes-data-ref">${escapeHtml(d.trim())}</span>`).join('');
+    }
+
+    return `<div class="minutes-entry type-${e.type}" onclick="this.classList.toggle('expanded')">
+      <div class="minutes-header">
+        <div class="minutes-agent">
+          <span class="minutes-dot" style="background:${color}"></span>
+          <span class="minutes-name" style="color:${color}">${name}</span>
+          <span class="minutes-type ${typeCls}">${typeLabel}</span>
+        </div>
+        <span class="minutes-time">${time}</span>
+      </div>
+      <div class="minutes-content">${content}</div>
+      ${dataRefs ? `<div style="margin-top:4px">${dataRefs}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Approval system ──
+
+function addApprovalRequest(data) {
+  approvalRequests.unshift({ ...data, status: 'pending', resolvedAt: null });
+  updateApprovalBadge();
+  if (panelMode === 'approval') renderApprovalPanel();
+}
+
+function updateApprovalBadge() {
+  const badge = document.getElementById('approval-badge');
+  const pending = approvalRequests.filter(r => r.status === 'pending').length;
+  if (pending > 0) {
+    badge.textContent = pending;
+    badge.className = 'panel-badge approval-count';
+  } else {
+    badge.textContent = '';
+    badge.className = 'panel-badge empty';
+  }
+}
+
+function renderApprovalPanel() {
+  const panel = document.getElementById('approval-panel');
+  if (!panel) return;
+  panel.style.display = 'flex';
+
+  if (approvalRequests.length === 0) {
+    panel.innerHTML = `<div class="approval-empty">
+      <div style="font-size:36px;margin-bottom:12px">🔔</div>
+      <div style="font-size:15px;font-weight:600;color:#c9d1d9;margin-bottom:8px">결재 대기 항목이 없습니다</div>
+      <div>CEO(한준혁)가 주요 의사결정을 요청하면<br>여기에 표시됩니다.</div>
+    </div>`;
+    return;
+  }
+
+  // pending 먼저, 나머지는 시간순
+  const sorted = [...approvalRequests].sort((a, b) => {
+    if (a.status === 'pending' && b.status !== 'pending') return -1;
+    if (a.status !== 'pending' && b.status === 'pending') return 1;
+    return 0;
+  });
+
+  panel.innerHTML = sorted.map(r => {
+    const time = new Date(r.timestamp).toLocaleString('ko-KR', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    const statusLabel = { pending: '대기 중', approved: '승인됨', rejected: '반려됨' }[r.status];
+    const statusCls = 's-' + r.status;
+    const canAct = r.status === 'pending' && ws && ws.readyState === WebSocket.OPEN;
+
+    return `<div class="approval-card ${r.status}">
+      <div class="approval-card-header">
+        <div class="approval-title">${escapeHtml(r.title)}</div>
+        <span class="approval-status ${statusCls}">${statusLabel}</span>
+      </div>
+      <div class="approval-desc">${escapeHtml(r.description)}</div>
+      ${r.context ? `<div class="approval-context">${escapeHtml(r.context)}</div>` : ''}
+      <div class="approval-time">${time}</div>
+      ${r.status === 'pending' ? `<div class="approval-actions">
+        <button class="approval-btn approve" ${canAct?'':'disabled'} onclick="handleApproval('${r.id}','approved')">승인</button>
+        <button class="approval-btn reject" ${canAct?'':'disabled'} onclick="handleApproval('${r.id}','rejected')">반려</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function handleApproval(approvalId, decision) {
+  let comment = '';
+  if (decision === 'rejected') {
+    comment = prompt('반려 사유를 입력하세요:');
+    if (comment === null) return; // 취소
+  }
+  ws.send(JSON.stringify({ type: 'approval_response', approvalId, decision, comment }));
+  // 낙관적 업데이트
+  const req = approvalRequests.find(r => r.id === approvalId);
+  if (req) { req.status = decision; req.resolvedAt = new Date().toISOString(); }
+  updateApprovalBadge();
+  renderApprovalPanel();
 }
 
 function handleWSMessage(msg) {
@@ -1483,7 +1600,18 @@ function handleWSMessage(msg) {
     case 'stream_end': {
       const msgs = chatHistories[currentChatAgent];
       const last = msgs[msgs.length - 1];
-      if (last && last.streaming) last.streaming = false;
+      if (last && last.streaming) {
+        last.streaming = false;
+        // 에이전트 응답을 회의록에 기록
+        const respPreview = (last.content || '').slice(0, 150) + (last.content.length > 150 ? '...' : '');
+        const isMeeting = currentChatAgent === -1;
+        addMinutesEntry({
+          type: isMeeting ? 'meeting' : 'chat',
+          agentId: msg.agentId,
+          agentName: last.name || msg.agentName,
+          content: respPreview,
+        });
+      }
       isStreaming = false;
       setAgentLiveStatus(msg.agentId, 'idle');
       clearChatActiveAgent();
@@ -1510,14 +1638,31 @@ function handleWSMessage(msg) {
       break;
     }
     case 'tool_activity': {
-      addToolActivity(msg);
-      // 도구 조회 상태 표시 후 짧게 유지
+      // 회의록에 데이터 조회 기록 추가
+      addMinutesEntry({
+        type: 'tool_use',
+        agentId: msg.agentId,
+        agentName: msg.agentName,
+        content: `${msg.toolLabel}: ${msg.preview}`,
+        dataReferenced: msg.toolLabel,
+      });
       setAgentLiveStatus(msg.agentId, 'querying');
       setTimeout(() => {
         if (agentLiveStatus[msg.agentId].status === 'querying') {
           setAgentLiveStatus(msg.agentId, 'responding');
         }
       }, 2000);
+      break;
+    }
+    case 'approval_request': {
+      addApprovalRequest(msg);
+      break;
+    }
+    case 'approval_resolved': {
+      const req = approvalRequests.find(r => r.id === msg.approvalId);
+      if (req) { req.status = msg.decision; req.resolvedAt = msg.timestamp; }
+      updateApprovalBadge();
+      if (panelMode === 'approval') renderApprovalPanel();
       break;
     }
     case 'error': {
@@ -1552,8 +1697,11 @@ function sendMessage() {
 
   if (currentChatAgent === -1) {
     ws.send(JSON.stringify({ type: 'meeting', content: text }));
+    addMinutesEntry({ type: 'instruction', agentId: -1, agentName: '전체 회의', content: `[사용자 → 전체] ${text}` });
   } else {
     ws.send(JSON.stringify({ type: 'chat', agentId: currentChatAgent, content: text }));
+    const agentName = AGENT_CFG.find(a => a.id === currentChatAgent)?.name || '';
+    addMinutesEntry({ type: 'instruction', agentId: currentChatAgent, agentName, content: `[사용자 → ${agentName}] ${text}` });
   }
 }
 
