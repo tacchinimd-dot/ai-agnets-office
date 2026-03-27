@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
+const fs = require('fs');
 const { WebSocketServer } = require('ws');
 const cors = require('cors');
 const path = require('path');
@@ -220,6 +221,10 @@ async function handleChat(ws, agentId, userMessage) {
 
   addMessage(agentId, 'user', userMessage);
 
+  // 로컬 로그 기록
+  appendChatLog(agentId, '사용자', userMessage);
+  logUserInstruction(agentId, userMessage);
+
   // 이서연(1) + 김하늘(2) + 박도현(3) + 최재원(4) tool_use 활성화
   const tools = getToolsForAgent(agentId);
   const useTools = !!tools;
@@ -294,8 +299,9 @@ async function handleChat(ws, agentId, userMessage) {
           });
           console.log(`[Tool] ${toolBlock.name} 성공 (${result.length} chars)`);
 
-          // 결과물 패널용 tool_activity 전송
+          // 결과물 패널용 tool_activity 전송 + 로컬 로그
           sendToolActivity(ws, agentId, agent.name, toolBlock.name, toolBlock.input, result, true);
+          logToolUse(agentId, toolBlock.name, TOOL_LABELS[toolBlock.name] || toolBlock.name);
         } catch (err) {
           console.error(`[Tool Error] ${toolBlock.name}:`, err.message);
           toolResults.push({
@@ -322,6 +328,10 @@ async function handleChat(ws, agentId, userMessage) {
       addMessage(agentId, 'assistant', fullResponse);
     }
 
+    // 로컬 로그 기록 + STATUS 업데이트
+    appendChatLog(agentId, agent.name, fullResponse);
+    updateAgentStatus(agentId);
+
     // CEO 결재 요청 파싱
     if (agentId === 0 && fullResponse.includes('[결재요청]')) {
       sendApprovalRequests(ws, agentId, agent.name, fullResponse);
@@ -336,6 +346,123 @@ async function handleChat(ws, agentId, userMessage) {
       agentId,
       message: `API 오류: ${err.message}`
     }));
+  }
+}
+
+// ── 에이전트별 로컬 로그 & STATUS 자동 업데이트 ──────────────────────────────
+
+const AGENT_FOLDERS = {
+  0: path.join(__dirname, '..', 'CEO'),
+  1: path.join(__dirname, '..', 'Market Agent'),
+  2: path.join(__dirname, '..', 'Consumer Trend Agent'),
+  3: path.join(__dirname, '..', 'Product Planning Agent'),
+  4: path.join(__dirname, '..', 'Data Analyst Agent'),
+};
+
+const AGENT_NAMES = { 0: '한준혁', 1: '이서연', 2: '김하늘', 3: '박도현', 4: '최재원' };
+
+// 에이전트별 최근 활동 추적 (STATUS 업데이트용)
+const agentActivity = {
+  0: { recentTasks: [], recentTools: [], lastActive: null },
+  1: { recentTasks: [], recentTools: [], lastActive: null },
+  2: { recentTasks: [], recentTools: [], lastActive: null },
+  3: { recentTasks: [], recentTools: [], lastActive: null },
+  4: { recentTasks: [], recentTools: [], lastActive: null },
+};
+
+function getDateStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function getTimeStr() {
+  return new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// 대화 로그 저장 (에이전트 폴더/logs/YYYY-MM-DD.md에 append)
+function appendChatLog(agentId, role, content) {
+  try {
+    const folder = AGENT_FOLDERS[agentId];
+    if (!folder) return;
+    const logsDir = path.join(folder, 'logs');
+    if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+
+    const logFile = path.join(logsDir, `${getDateStr()}.md`);
+    const time = getTimeStr();
+    const text = typeof content === 'string' ? content : JSON.stringify(content).slice(0, 500);
+    const preview = text.length > 300 ? text.slice(0, 300) + '...' : text;
+    const line = `\n### ${time} [${role}]\n${preview}\n`;
+
+    // 파일이 없으면 헤더 추가
+    if (!fs.existsSync(logFile)) {
+      const header = `# ${AGENT_NAMES[agentId]} — 대화 로그 (${getDateStr()})\n`;
+      fs.writeFileSync(logFile, header, 'utf-8');
+    }
+    fs.appendFileSync(logFile, line, 'utf-8');
+  } catch (err) {
+    console.error(`[Log Error] agent ${agentId}:`, err.message);
+  }
+}
+
+// 도구 사용 기록
+function logToolUse(agentId, toolName, toolLabel) {
+  const act = agentActivity[agentId];
+  if (!act) return;
+  act.lastActive = new Date().toISOString();
+  const entry = `${getTimeStr()} ${toolLabel}`;
+  act.recentTools.unshift(entry);
+  if (act.recentTools.length > 10) act.recentTools.pop();
+}
+
+// 사용자 지시 기록
+function logUserInstruction(agentId, instruction) {
+  const act = agentActivity[agentId];
+  if (!act) return;
+  act.lastActive = new Date().toISOString();
+  const entry = `${getTimeStr()} ${instruction.slice(0, 80)}`;
+  act.recentTasks.unshift(entry);
+  if (act.recentTasks.length > 10) act.recentTasks.pop();
+}
+
+// STATUS.md 자동 업데이트
+function updateAgentStatus(agentId) {
+  try {
+    const folder = AGENT_FOLDERS[agentId];
+    if (!folder) return;
+    const statusFile = path.join(folder, 'STATUS.md');
+    if (!fs.existsSync(statusFile)) return;
+
+    let content = fs.readFileSync(statusFile, 'utf-8');
+    const act = agentActivity[agentId];
+    const now = getDateStr();
+
+    // 최종 업데이트 날짜 갱신
+    content = content.replace(/> 최종 업데이트: .+/, `> 최종 업데이트: ${now}`);
+
+    // 최근 분석/결재 이력 업데이트
+    const historySection = agentId === 0 ? '## 최근 결재 이력' : '## 최근 분석 이력';
+    const historyIdx = content.indexOf(historySection);
+    if (historyIdx !== -1) {
+      const nextSection = content.indexOf('\n## ', historyIdx + historySection.length);
+      const endIdx = nextSection !== -1 ? nextSection : content.length;
+
+      let historyContent = `${historySection}\n`;
+      if (act.recentTasks.length > 0) {
+        historyContent += act.recentTasks.map(t => `- ${t}`).join('\n') + '\n';
+      }
+      if (act.recentTools.length > 0) {
+        historyContent += '\n**데이터 조회:**\n';
+        historyContent += act.recentTools.map(t => `- ${t}`).join('\n') + '\n';
+      }
+      if (act.recentTasks.length === 0 && act.recentTools.length === 0) {
+        historyContent += '(아직 내역 없음)\n';
+      }
+
+      content = content.slice(0, historyIdx) + historyContent + content.slice(endIdx);
+    }
+
+    fs.writeFileSync(statusFile, content, 'utf-8');
+  } catch (err) {
+    console.error(`[Status Update Error] agent ${agentId}:`, err.message);
   }
 }
 
@@ -506,6 +633,11 @@ async function handleMeeting(ws, userMessage) {
 
     addMessage(agentId, 'user', meetingContext);
 
+    // 회의 발언 로그 (첫 번째 에이전트에만 사용자 원문 기록)
+    if (agentId === order[0]) {
+      appendChatLog(agentId, '사용자(회의)', userMessage);
+    }
+
     ws.send(JSON.stringify({ type: 'stream_start', agentId, agentName: agent.name }));
 
     try {
@@ -576,6 +708,7 @@ async function handleMeeting(ws, userMessage) {
             });
             console.log(`[Meeting Tool] ${agent.name} → ${toolBlock.name} 성공 (${result.length} chars)`);
             sendToolActivity(ws, agentId, agent.name, toolBlock.name, toolBlock.input, result, true);
+            logToolUse(agentId, toolBlock.name, TOOL_LABELS[toolBlock.name] || toolBlock.name);
           } catch (err) {
             console.error(`[Meeting Tool Error] ${agent.name} → ${toolBlock.name}:`, err.message);
             toolResults.push({
@@ -597,6 +730,10 @@ async function handleMeeting(ws, userMessage) {
       if (!lastMsg || lastMsg.role !== 'assistant') {
         addMessage(agentId, 'assistant', fullResponse);
       }
+
+      // 로컬 로그 기록 + STATUS 업데이트
+      appendChatLog(agentId, agent.name, fullResponse);
+      updateAgentStatus(agentId);
 
       // CEO 결재 요청 파싱
       if (agentId === 0 && fullResponse.includes('[결재요청]')) {
