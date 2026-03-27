@@ -228,6 +228,15 @@ C:\Users\AD0903\ai_office_project\
 - [x] 성공/오류 시각적 구분 (초록/빨강 좌측 보더)
 - [x] index.html 동기화
 
+### Phase 4.0 — 에이전트 간 자동 협업 (완료)
+- [x] 🤝 협업 탭 추가 (채팅 탭 목록)
+- [x] 에이전트 선택 UI: 순서대로 클릭하여 협업 체인 구성
+- [x] 플로우 시각화: 이서연 → 박도현 → 최재원 형태
+- [x] 서버 handleCollaboration: 순차 처리 + 컨텍스트 전달 + tool_use 지원
+- [x] 캔버스: 협업 에이전트들이 Meeting Room 2로 이동
+- [x] 회의록 자동 기록 + STATUS 자동 업데이트
+- [x] 에이전트별 STATUS.md/SKILLS.md/logs/ 폴더 구조 생성
+
 ### Phase 3.4 — 회의록 + 결재 대기 시스템 (완료)
 - [x] 결과물 탭 → 회의록 탭(📋)으로 변경
 - [x] 회의록 자동 기록: 사용자 지시, 에이전트 응답, 회의 발언, 데이터 조회
@@ -283,6 +292,7 @@ C:\Users\AD0903\ai_office_project\
 | 2026-03-26 | Phase 2.5 완료 — 이서연 경쟁사 데이터 tool_use 연동 (839개 상품) |
 | 2026-03-26 | Phase 2 완료 — 최재원 Snowflake tool_use 연동 |
 | 2026-03-27 | Render.com Web Service 배포 완료 (https://ai-agnets-office.onrender.com/) |
+| 2026-03-27 | **Phase 4.0 완료** — 에이전트 간 자동 협업 (선택적 체인, Meeting Room 2, 연쇄 분석) |
 | 2026-03-27 | **Phase 3.4 완료** — 회의록 + 결재 대기 시스템 (자동 기록, CEO 결재 요청/승인/반려) |
 | 2026-03-27 | **Phase 3.3 완료** — 캔버스-채팅 이벤트 연동 (랜덤 회의 제거, 채팅 트리거) |
 | 2026-03-27 | **Phase 3.2 완료** — SKILL/STATUS 뱃지 시스템 (캔버스+카드+툴팁, 실시간 상태 추적) |
