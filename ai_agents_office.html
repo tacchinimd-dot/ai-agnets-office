@@ -484,15 +484,40 @@ class Agent {
       }
       case 'visit': case 'hosting': {
         this.moveToward();
-        if (this.arrivedAtTarget()) { this.state='meeting'; this.meetingTimer=300+Math.floor(Math.random()*200); this.statusText='회의 중'; setAgentLiveStatus(this.id, 'meeting'); }
+        if (this.arrivedAtTarget()) {
+          // 파트너가 아직 이동 중이면 도착 후 대기 (meetingTimer 시작하지 않음)
+          const p = this.partner;
+          if (p && (p.state === 'visit' || p.state === 'hosting')) {
+            this.state = 'waiting'; this.statusText = '파트너 대기 중'; setAgentLiveStatus(this.id, 'meeting');
+          } else {
+            // 파트너가 이미 대기 중이면 둘 다 meeting 시작
+            const sharedTimer = 300 + Math.floor(Math.random()*200);
+            this.state = 'meeting'; this.meetingTimer = sharedTimer; this.statusText = '회의 중'; setAgentLiveStatus(this.id, 'meeting');
+            if (p && p.state === 'waiting') { p.state = 'meeting'; p.meetingTimer = sharedTimer; p.statusText = '회의 중'; setAgentLiveStatus(p.id, 'meeting'); }
+          }
+        }
+        break;
+      }
+      case 'waiting': {
+        // 파트너가 도착할 때까지 대기 — 파트너가 없거나 이탈하면 복귀
+        const p = this.partner;
+        if (!p || p.state === 'idle' || p.state === 'returning') {
+          this.state='returning'; this.setTarget(this.hx,this.hy); this.statusText='자리로 복귀 중'; this.partner=null; this.seatIdx=-1; this.mrIdx=-1; setAgentLiveStatus(this.id, 'walking');
+        }
         break;
       }
       case 'meeting': {
         this.meetingTimer--;
         if (this.meetingTimer <= 0) {
           const p = this.partner;
-          this.state='returning'; this.setTarget(this.hx,this.hy); this.statusText='자리로 복귀 중'; this.partner=null; this.seatIdx=-1; this.mrIdx=-1; setAgentLiveStatus(this.id, 'walking');
-          if (p&&p.state==='meeting') { p.state='returning'; p.setTarget(p.hx,p.hy); p.statusText='자리로 복귀 중'; p.partner=null; p.seatIdx=-1; p.mrIdx=-1; setAgentLiveStatus(p.id, 'walking'); }
+          // 자기 자신 복귀 처리
+          this.state='returning'; this.setTarget(this.hx,this.hy); this.statusText='자리로 복귀 중'; this.seatIdx=-1; this.mrIdx=-1; setAgentLiveStatus(this.id, 'walking');
+          // 파트너도 동시에 복귀 처리 (partner 참조 해제는 양쪽 다 처리한 후)
+          if (p && (p.state==='meeting' || p.state==='waiting')) {
+            p.state='returning'; p.setTarget(p.hx,p.hy); p.statusText='자리로 복귀 중'; p.seatIdx=-1; p.mrIdx=-1; setAgentLiveStatus(p.id, 'walking');
+            p.partner=null;
+          }
+          this.partner=null;
         }
         break;
       }
