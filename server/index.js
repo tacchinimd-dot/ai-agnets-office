@@ -11,8 +11,11 @@ const { DATA_ANALYST_TOOLS, buildWeeklySummarySQL } = require('./tools');
 const { MARKET_AGENT_TOOLS } = require('./market-tools');
 const { PRODUCT_PLANNING_TOOLS, buildCategoryPerformanceSQL, buildTopSellingSQL } = require('./product-tools');
 const { TREND_AGENT_TOOLS, loadMusinsaData, loadTiktokData, loadGoogleTrends, queryRanking, getRankingSummary, getCategoryTrend, queryTiktokHashtags, getTiktokSummary, queryGoogleTrends, getGoogleTrendsSummary, buildRisingKeywordsSQL, runMusinsaCrawler, runTiktokCrawler } = require('./trend-tools');
-const { executeQuery, isConnected } = require('./snowflake');
+const { executeQuery, isConnected, getConnection } = require('./snowflake');
 const { loadAll, queryProducts, getBrandSummary, compareBrands, getProductCount } = require('./competitors');
+const scheduler = require('./scheduler');
+const { buildCharts } = require('./chart-builder');
+const triggers = require('./triggers');
 
 const app = express();
 const server = http.createServer(app);
@@ -70,6 +73,40 @@ wss.on('connection', (ws) => {
       await handleCollaboration(ws, msg);
     } else if (type === 'approval_response') {
       handleApprovalResponse(ws, msg);
+    } else if (type === 'schedule_list') {
+      ws.send(JSON.stringify({ type: 'schedule_list', schedules: scheduler.getSchedules(), reports: scheduler.getReports(null, 20) }));
+    } else if (type === 'schedule_create') {
+      const schedule = scheduler.createSchedule(msg.schedule);
+      broadcast({ type: 'schedule_updated', schedule });
+    } else if (type === 'schedule_toggle') {
+      const schedule = scheduler.toggleSchedule(msg.scheduleId, msg.enabled);
+      if (schedule) broadcast({ type: 'schedule_updated', schedule });
+    } else if (type === 'schedule_delete') {
+      if (scheduler.deleteSchedule(msg.scheduleId)) {
+        broadcast({ type: 'schedule_deleted', scheduleId: msg.scheduleId });
+      }
+    } else if (type === 'schedule_update') {
+      const schedule = scheduler.updateSchedule(msg.scheduleId, msg.updates);
+      if (schedule) broadcast({ type: 'schedule_updated', schedule });
+    } else if (type === 'schedule_run_now') {
+      const schedule = scheduler.getSchedule(msg.scheduleId);
+      if (schedule) {
+        executeScheduledTask(schedule);
+      }
+    } else if (type === 'trigger_list') {
+      ws.send(JSON.stringify({ type: 'trigger_list', triggers: triggers.getTriggers() }));
+    } else if (type === 'trigger_toggle') {
+      const trigger = triggers.toggleTrigger(msg.triggerId, msg.enabled);
+      if (trigger) broadcast({ type: 'trigger_updated', trigger });
+    } else if (type === 'trigger_delete') {
+      if (triggers.deleteTrigger(msg.triggerId)) {
+        broadcast({ type: 'trigger_deleted', triggerId: msg.triggerId });
+      }
+    } else if (type === 'trigger_create') {
+      const trigger = triggers.createTrigger(msg.trigger);
+      broadcast({ type: 'trigger_updated', trigger });
+    } else if (type === 'agent_dm') {
+      await handleAgentDM(ws, msg);
     }
   });
 
@@ -599,8 +636,65 @@ function sendToolActivity(ws, agentId, agentName, toolName, toolInput, result, s
       resultSize: success ? result.length : 0,
       timestamp: new Date().toISOString(),
     }));
+
+    // 차트 데이터 자동 생성 & 전송
+    if (success) {
+      try {
+        const charts = buildCharts(toolName, result);
+        for (const chart of charts) {
+          ws.send(JSON.stringify({
+            type: 'chart_data',
+            agentId,
+            agentName,
+            toolName,
+            toolLabel: TOOL_LABELS[toolName] || toolName,
+            ...chart,
+            timestamp: new Date().toISOString(),
+          }));
+        }
+      } catch (chartErr) {
+        // 차트 빌드 실패는 무시 (도구 결과 전달에는 영향 없음)
+      }
+
+      // 자동 트리거 체크 (비동기, 오류 무시)
+      triggers.checkTriggers(agentId, toolName, result).catch(() => {});
+    }
   } catch (err) {
     console.error('[sendToolActivity Error]', err.message);
+  }
+}
+
+// 브로드캐스트용 sendToolActivity (스케줄러에서 사용)
+function broadcastToolActivity(agentId, agentName, toolName, toolInput, result, success) {
+  try {
+    const inputSummary = toolInput.purpose || toolInput.sql?.slice(0, 80) || toolInput.brand || toolInput.metric || toolInput.category || JSON.stringify(toolInput).slice(0, 80);
+    const preview = success ? buildResultPreview(toolName, result) : `오류: ${result}`;
+
+    broadcast({
+      type: 'tool_activity',
+      agentId, agentName, toolName,
+      toolLabel: TOOL_LABELS[toolName] || toolName,
+      inputSummary, preview, success,
+      resultSize: success ? result.length : 0,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (success) {
+      try {
+        const charts = buildCharts(toolName, result);
+        for (const chart of charts) {
+          broadcast({
+            type: 'chart_data',
+            agentId, agentName, toolName,
+            toolLabel: TOOL_LABELS[toolName] || toolName,
+            ...chart,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (chartErr) { /* ignore */ }
+    }
+  } catch (err) {
+    console.error('[broadcastToolActivity Error]', err.message);
   }
 }
 
@@ -873,6 +967,468 @@ async function handleCollaboration(ws, msg) {
   ws.send(JSON.stringify({ type: 'collab_end', agentIds }));
 }
 
+// ── 에이전트 간 DM (Agent-to-Agent Direct Message) ─────────────────────────
+
+async function handleAgentDM(ws, msg) {
+  const { fromAgentId, toAgentId, question } = msg;
+  const fromAgent = getAgent(fromAgentId);
+  const toAgent = getAgent(toAgentId);
+  if (!fromAgent || !toAgent) {
+    ws.send(JSON.stringify({ type: 'error', message: '에이전트를 찾을 수 없습니다' }));
+    return;
+  }
+
+  // 1단계: fromAgent가 질문을 생성 (사용자 지시 기반)
+  ws.send(JSON.stringify({ type: 'dm_start', fromAgentId, toAgentId, fromName: fromAgent.name, toName: toAgent.name }));
+
+  // fromAgent에게 질문 생성 요청
+  const fromInstruction = `[DM 모드] 당신(${fromAgent.name})이 ${toAgent.name}(${toAgent.role})에게 직접 질문합니다.\n사용자 요청: "${question}"\n\n${toAgent.name}의 전문 분야를 고려하여, 구체적인 데이터나 인사이트를 요청하는 질문을 작성해주세요. 질문만 작성하세요 (2-3문장).`;
+
+  addMessage(fromAgentId, 'user', fromInstruction);
+  ws.send(JSON.stringify({ type: 'stream_start', agentId: fromAgentId, agentName: fromAgent.name, source: 'dm' }));
+
+  let fromQuestion = '';
+  try {
+    const stream1 = anthropic.messages.stream({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 512,
+      system: fromAgent.systemPrompt + `\n\n[DM 모드] ${toAgent.name}에게 질문을 작성하는 중입니다. 짧고 구체적으로 작성하세요.`,
+      messages: getConversation(fromAgentId),
+    });
+    stream1.on('text', (text) => {
+      fromQuestion += text;
+      ws.send(JSON.stringify({ type: 'stream_delta', agentId: fromAgentId, delta: text, source: 'dm' }));
+    });
+    await stream1.finalMessage();
+    addMessage(fromAgentId, 'assistant', fromQuestion);
+    appendChatLog(fromAgentId, fromAgent.name, `[DM → ${toAgent.name}] ${fromQuestion.slice(0,200)}`);
+  } catch (err) {
+    ws.send(JSON.stringify({ type: 'error', agentId: fromAgentId, message: `DM 오류: ${err.message}` }));
+    return;
+  }
+  ws.send(JSON.stringify({ type: 'stream_end', agentId: fromAgentId, source: 'dm' }));
+
+  // 2단계: toAgent가 답변 (tool_use 포함)
+  const toInstruction = `[DM 수신] ${fromAgent.name}(${fromAgent.role})이 당신에게 직접 질문했습니다:\n\n"${fromQuestion}"\n\n도구를 사용해 데이터를 조회하고, 구체적인 수치와 함께 답변해주세요.`;
+
+  addMessage(toAgentId, 'user', toInstruction);
+  ws.send(JSON.stringify({ type: 'stream_start', agentId: toAgentId, agentName: toAgent.name, source: 'dm' }));
+
+  let toResponse = '';
+  try {
+    let loopCount = 0;
+    const maxLoops = 4;
+    const tools = getToolsForAgent(toAgentId);
+
+    while (loopCount < maxLoops) {
+      loopCount++;
+      const messages = getConversation(toAgentId);
+      const apiParams = {
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: toAgent.systemPrompt + `\n\n[DM 모드] ${fromAgent.name}의 질문에 답변 중입니다. 도구를 적극 활용하여 데이터 기반으로 답변하세요.`,
+        messages,
+      };
+      if (tools) apiParams.tools = tools;
+
+      const stream2 = anthropic.messages.stream(apiParams);
+      let turnText = '';
+      let toolUseBlocks = [];
+
+      stream2.on('text', (text) => {
+        turnText += text;
+        ws.send(JSON.stringify({ type: 'stream_delta', agentId: toAgentId, delta: text, source: 'dm' }));
+      });
+
+      const finalMessage = await stream2.finalMessage();
+      for (const block of finalMessage.content) {
+        if (block.type === 'tool_use') toolUseBlocks.push(block);
+      }
+
+      if (toolUseBlocks.length === 0) { toResponse += turnText; break; }
+
+      addMessage(toAgentId, 'assistant', finalMessage.content);
+      ws.send(JSON.stringify({ type: 'stream_delta', agentId: toAgentId, delta: '\n\n📊 *데이터 조회 중...*\n\n', source: 'dm' }));
+      toResponse += turnText + '\n\n📊 *데이터 조회 중...*\n\n';
+
+      const toolResults = [];
+      for (const toolBlock of toolUseBlocks) {
+        try {
+          const result = await executeTool(toolBlock.name, toolBlock.input);
+          toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: result });
+          sendToolActivity(ws, toAgentId, toAgent.name, toolBlock.name, toolBlock.input, result, true);
+          logToolUse(toAgentId, toolBlock.name, TOOL_LABELS[toolBlock.name] || toolBlock.name);
+        } catch (err) {
+          toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: `오류: ${err.message}`, is_error: true });
+        }
+      }
+      addMessage(toAgentId, 'user', toolResults);
+    }
+
+    const lastMsg = getConversation(toAgentId).at(-1);
+    if (!lastMsg || lastMsg.role !== 'assistant') addMessage(toAgentId, 'assistant', toResponse);
+    appendChatLog(toAgentId, toAgent.name, `[DM ← ${fromAgent.name}] ${toResponse.slice(0,200)}`);
+    updateAgentStatus(toAgentId);
+
+  } catch (err) {
+    ws.send(JSON.stringify({ type: 'error', agentId: toAgentId, message: `DM 응답 오류: ${err.message}` }));
+  }
+
+  ws.send(JSON.stringify({ type: 'stream_end', agentId: toAgentId, source: 'dm' }));
+  ws.send(JSON.stringify({ type: 'dm_end', fromAgentId, toAgentId, fromName: fromAgent.name, toName: toAgent.name }));
+}
+
+// ── WebSocket 브로드캐스트 ─────────────────────────────────────────────────
+
+function broadcast(msg) {
+  const data = JSON.stringify(msg);
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) client.send(data);
+  });
+}
+
+// ── 스케줄된 자동 분석 실행 ─────────────────────────────────────────────────
+
+async function executeScheduledTask(schedule) {
+  const { AGENTS: agentsList } = require('./agents');
+
+  // 실행 시작 알림
+  broadcast({
+    type: 'auto_report_start',
+    scheduleId: schedule.id,
+    scheduleName: schedule.name,
+    scheduleType: schedule.type,
+    agentId: schedule.agentId,
+    timestamp: new Date().toISOString(),
+  });
+
+  let fullReport = '';
+
+  try {
+    if (schedule.type === 'meeting') {
+      fullReport = await executeScheduledMeeting(schedule);
+    } else if (schedule.type === 'collaboration' && schedule.agents && schedule.agents.length >= 2) {
+      fullReport = await executeScheduledCollab(schedule);
+    } else {
+      fullReport = await executeScheduledChat(schedule);
+    }
+  } catch (err) {
+    console.error(`[Scheduler] 실행 오류: ${err.message}`);
+    fullReport = `[자동 분석 오류] ${err.message}`;
+    broadcast({ type: 'auto_report_error', scheduleId: schedule.id, error: err.message });
+  }
+
+  // 리포트 저장
+  const agentName = schedule.agentId !== null
+    ? (getAgent(schedule.agentId)?.name || '')
+    : '전체 회의';
+  const report = {
+    scheduleId: schedule.id,
+    scheduleName: schedule.name,
+    type: schedule.type,
+    agentId: schedule.agentId,
+    agentName,
+    content: fullReport,
+    timestamp: new Date().toISOString(),
+  };
+  scheduler.saveReport(report);
+
+  // 리포트 완료 알림
+  broadcast({
+    type: 'auto_report',
+    ...report,
+    preview: fullReport.slice(0, 300),
+  });
+
+  return fullReport;
+}
+
+async function executeScheduledChat(schedule) {
+  const agent = getAgent(schedule.agentId);
+  if (!agent) throw new Error(`에이전트 ${schedule.agentId} 없음`);
+
+  const instruction = `[자동 분석 요청] ${schedule.instruction}\n\n데이터를 조회하여 구체적인 수치와 함께 분석 리포트를 작성해주세요.`;
+
+  addMessage(schedule.agentId, 'user', instruction);
+  appendChatLog(schedule.agentId, '자동 스케줄', instruction.slice(0, 100));
+  logUserInstruction(schedule.agentId, `[자동] ${schedule.name}`);
+
+  // 스트리밍 시작 브로드캐스트
+  broadcast({ type: 'stream_start', agentId: schedule.agentId, agentName: agent.name, source: 'scheduled' });
+
+  let fullResponse = '';
+  let loopCount = 0;
+  const maxLoops = 5;
+  const tools = getToolsForAgent(schedule.agentId);
+
+  while (loopCount < maxLoops) {
+    loopCount++;
+    const messages = getConversation(schedule.agentId);
+
+    const apiParams = {
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      system: agent.systemPrompt + '\n\n[자동 분석 모드] 정기 리포트를 작성 중입니다. 도구를 적극 사용하여 최신 데이터를 조회하고, 핵심 인사이트를 구조화된 형태로 정리해주세요.',
+      messages,
+    };
+    if (tools) apiParams.tools = tools;
+
+    const stream = anthropic.messages.stream(apiParams);
+    let turnText = '';
+    let toolUseBlocks = [];
+
+    stream.on('text', (text) => {
+      turnText += text;
+      broadcast({ type: 'stream_delta', agentId: schedule.agentId, delta: text, source: 'scheduled' });
+    });
+
+    const finalMessage = await stream.finalMessage();
+
+    for (const block of finalMessage.content) {
+      if (block.type === 'tool_use') toolUseBlocks.push(block);
+    }
+
+    if (toolUseBlocks.length === 0) {
+      fullResponse += turnText;
+      break;
+    }
+
+    addMessage(schedule.agentId, 'assistant', finalMessage.content);
+    broadcast({ type: 'stream_delta', agentId: schedule.agentId, delta: '\n\n📊 *데이터 조회 중...*\n\n', source: 'scheduled' });
+    fullResponse += turnText + '\n\n📊 *데이터 조회 중...*\n\n';
+
+    const toolResults = [];
+    for (const toolBlock of toolUseBlocks) {
+      try {
+        const result = await executeTool(toolBlock.name, toolBlock.input);
+        toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: result });
+        // tool_activity 브로드캐스트
+        const inputSummary = toolBlock.input.purpose || toolBlock.input.sql?.slice(0, 80) || JSON.stringify(toolBlock.input).slice(0, 80);
+        const preview = buildResultPreview(toolBlock.name, result);
+        broadcast({
+          type: 'tool_activity', agentId: schedule.agentId, agentName: agent.name,
+          toolName: toolBlock.name, toolLabel: TOOL_LABELS[toolBlock.name] || toolBlock.name,
+          inputSummary, preview, success: true, resultSize: result.length,
+          timestamp: new Date().toISOString(), source: 'scheduled',
+        });
+        logToolUse(schedule.agentId, toolBlock.name, TOOL_LABELS[toolBlock.name] || toolBlock.name);
+      } catch (err) {
+        toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: `오류: ${err.message}`, is_error: true });
+      }
+    }
+    addMessage(schedule.agentId, 'user', toolResults);
+  }
+
+  const lastMsg = getConversation(schedule.agentId).at(-1);
+  if (!lastMsg || lastMsg.role !== 'assistant') {
+    addMessage(schedule.agentId, 'assistant', fullResponse);
+  }
+
+  appendChatLog(schedule.agentId, agent.name, fullResponse);
+  updateAgentStatus(schedule.agentId);
+
+  broadcast({ type: 'stream_end', agentId: schedule.agentId, source: 'scheduled' });
+  return fullResponse;
+}
+
+async function executeScheduledMeeting(schedule) {
+  broadcast({ type: 'meeting_start', source: 'scheduled' });
+
+  const order = [0, 1, 2, 3, 4];
+  const allResponses = [];
+  let fullReport = '';
+
+  for (const agentId of order) {
+    const agent = getAgent(agentId);
+    const meetingContext = allResponses.length > 0
+      ? `\n\n[자동 정기 회의]\n주제: "${schedule.instruction}"\n\n` +
+        allResponses.map(r => `${r.name} (${r.role}): ${r.content}`).join('\n\n') +
+        `\n\n위 동료들의 의견을 참고하여 답변하세요. 필요하면 도구를 사용하세요.`
+      : `[자동 정기 회의] ${schedule.instruction}`;
+
+    addMessage(agentId, 'user', meetingContext);
+    broadcast({ type: 'stream_start', agentId, agentName: agent.name, source: 'scheduled' });
+
+    let fullResponse = '';
+    let loopCount = 0;
+    const maxLoops = 3;
+    const tools = getToolsForAgent(agentId);
+
+    while (loopCount < maxLoops) {
+      loopCount++;
+      const messages = getConversation(agentId);
+      const apiParams = {
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: agent.systemPrompt + '\n\n[자동 정기 회의] 데이터 조회가 필요하면 도구를 적극 사용하되, 최종 답변은 간결하게 핵심만 정리하세요 (3-7문장).',
+        messages,
+      };
+      if (tools) apiParams.tools = tools;
+
+      const stream = anthropic.messages.stream(apiParams);
+      let turnText = '';
+      let toolUseBlocks = [];
+
+      stream.on('text', (text) => {
+        turnText += text;
+        broadcast({ type: 'stream_delta', agentId, delta: text, source: 'scheduled' });
+      });
+
+      const finalMessage = await stream.finalMessage();
+      for (const block of finalMessage.content) {
+        if (block.type === 'tool_use') toolUseBlocks.push(block);
+      }
+
+      if (toolUseBlocks.length === 0) { fullResponse += turnText; break; }
+
+      addMessage(agentId, 'assistant', finalMessage.content);
+      broadcast({ type: 'stream_delta', agentId, delta: '\n\n📊 *데이터 조회 중...*\n\n', source: 'scheduled' });
+      fullResponse += turnText + '\n\n📊 *데이터 조회 중...*\n\n';
+
+      const toolResults = [];
+      for (const toolBlock of toolUseBlocks) {
+        try {
+          const result = await executeTool(toolBlock.name, toolBlock.input);
+          toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: result });
+          const inputSummary = toolBlock.input.purpose || toolBlock.input.sql?.slice(0, 80) || JSON.stringify(toolBlock.input).slice(0, 80);
+          broadcast({
+            type: 'tool_activity', agentId, agentName: agent.name,
+            toolName: toolBlock.name, toolLabel: TOOL_LABELS[toolBlock.name] || toolBlock.name,
+            inputSummary, preview: buildResultPreview(toolBlock.name, result),
+            success: true, resultSize: result.length, timestamp: new Date().toISOString(), source: 'scheduled',
+          });
+          logToolUse(agentId, toolBlock.name, TOOL_LABELS[toolBlock.name] || toolBlock.name);
+        } catch (err) {
+          toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: `오류: ${err.message}`, is_error: true });
+        }
+      }
+      addMessage(agentId, 'user', toolResults);
+    }
+
+    const lastMsg = getConversation(agentId).at(-1);
+    if (!lastMsg || lastMsg.role !== 'assistant') addMessage(agentId, 'assistant', fullResponse);
+
+    appendChatLog(agentId, agent.name, fullResponse);
+    updateAgentStatus(agentId);
+
+    allResponses.push({ name: agent.name, role: agent.role, content: fullResponse });
+    fullReport += `\n\n━━ ${agent.name} (${agent.role}) ━━\n${fullResponse}`;
+    broadcast({ type: 'stream_end', agentId, source: 'scheduled' });
+  }
+
+  broadcast({ type: 'meeting_end', source: 'scheduled' });
+  return fullReport;
+}
+
+async function executeScheduledCollab(schedule) {
+  const agentIds = schedule.agents;
+  broadcast({ type: 'collab_start', agentIds, source: 'scheduled' });
+
+  const collabResponses = [];
+  let fullReport = '';
+
+  for (let i = 0; i < agentIds.length; i++) {
+    const agentId = agentIds[i];
+    const agent = getAgent(agentId);
+    if (!agent) continue;
+
+    const collabContext = i === 0
+      ? `[자동 협업 분석] 사용자 지시: "${schedule.instruction}"\n\n당신의 전문 분야 관점에서 분석해주세요.`
+      : `[자동 협업 분석] 사용자 지시: "${schedule.instruction}"\n\n[이전 담당자 분석 결과]\n` +
+        collabResponses.map(r => `━━ ${r.name} ━━\n${r.content}`).join('\n\n') +
+        `\n\n위 분석 결과를 바탕으로 후속 분석을 제시해주세요.`;
+
+    addMessage(agentId, 'user', collabContext);
+    broadcast({ type: 'stream_start', agentId, agentName: agent.name, source: 'scheduled' });
+
+    let fullResponse = '';
+    let loopCount = 0;
+    const maxLoops = 4;
+    const tools = getToolsForAgent(agentId);
+
+    while (loopCount < maxLoops) {
+      loopCount++;
+      const messages = getConversation(agentId);
+      const apiParams = {
+        model: 'claude-haiku-4-5-20251001', max_tokens: 1024,
+        system: agent.systemPrompt + '\n\n[자동 협업 모드] 도구를 적극 활용하여 데이터 기반 분석을 제공하세요.',
+        messages,
+      };
+      if (tools) apiParams.tools = tools;
+
+      const stream = anthropic.messages.stream(apiParams);
+      let turnText = '';
+      let toolUseBlocks = [];
+      stream.on('text', (text) => { turnText += text; broadcast({ type: 'stream_delta', agentId, delta: text, source: 'scheduled' }); });
+
+      const finalMessage = await stream.finalMessage();
+      for (const block of finalMessage.content) { if (block.type === 'tool_use') toolUseBlocks.push(block); }
+      if (toolUseBlocks.length === 0) { fullResponse += turnText; break; }
+
+      addMessage(agentId, 'assistant', finalMessage.content);
+      fullResponse += turnText + '\n\n📊 *데이터 조회 중...*\n\n';
+
+      const toolResults = [];
+      for (const toolBlock of toolUseBlocks) {
+        try {
+          const result = await executeTool(toolBlock.name, toolBlock.input);
+          toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: result });
+          const inputSummary = toolBlock.input.purpose || toolBlock.input.sql?.slice(0, 80) || JSON.stringify(toolBlock.input).slice(0, 80);
+          broadcast({
+            type: 'tool_activity', agentId, agentName: agent.name,
+            toolName: toolBlock.name, toolLabel: TOOL_LABELS[toolBlock.name] || toolBlock.name,
+            inputSummary, preview: buildResultPreview(toolBlock.name, result),
+            success: true, resultSize: result.length, timestamp: new Date().toISOString(), source: 'scheduled',
+          });
+          logToolUse(agentId, toolBlock.name, TOOL_LABELS[toolBlock.name] || toolBlock.name);
+        } catch (err) {
+          toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: `오류: ${err.message}`, is_error: true });
+        }
+      }
+      addMessage(agentId, 'user', toolResults);
+    }
+
+    const lastMsg = getConversation(agentId).at(-1);
+    if (!lastMsg || lastMsg.role !== 'assistant') addMessage(agentId, 'assistant', fullResponse);
+    appendChatLog(agentId, agent.name, fullResponse);
+    updateAgentStatus(agentId);
+
+    collabResponses.push({ name: agent.name, content: fullResponse });
+    fullReport += `\n\n━━ ${agent.name} ━━\n${fullResponse}`;
+    broadcast({ type: 'stream_end', agentId, source: 'scheduled' });
+  }
+
+  broadcast({ type: 'collab_end', agentIds, source: 'scheduled' });
+  return fullReport;
+}
+
+// ── 스케줄러 & 트리거 콜백 등록 ──────────────────────────────────────────
+
+scheduler.setExecuteCallback(executeScheduledTask);
+
+triggers.setTriggerExecuteCallback(async (trigger, instruction, summary) => {
+  // 트리거 발동 알림 브로드캐스트
+  broadcast({
+    type: 'trigger_fired',
+    triggerId: trigger.id,
+    triggerName: trigger.name,
+    sourceAgentId: trigger.sourceAgentId,
+    targetAgentId: trigger.targetAgentId,
+    summary,
+    timestamp: new Date().toISOString(),
+  });
+
+  // 타겟 에이전트에게 자동 분석 실행 (스케줄러 재활용)
+  const pseudoSchedule = {
+    id: `trigger_${trigger.id}`,
+    name: `[트리거] ${trigger.name}`,
+    type: 'chat',
+    agentId: trigger.targetAgentId,
+    instruction,
+  };
+  await executeScheduledTask(pseudoSchedule);
+});
+
 // ── 서버 시작 ────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3001;
@@ -927,6 +1483,18 @@ server.listen(PORT, () => {
   } catch (err) {
     console.log(`⚠️  경쟁사 데이터 로드 실패: ${err.message} — 이서연은 도구 없이 동작합니다`);
   }
+
+  // 스케줄러 초기화
+  console.log(`⏰ 스케줄러 초기화 중...`);
+  scheduler.loadSchedules();
+  scheduler.loadReports();
+  scheduler.startAllTimers();
+  console.log(`⏰ 스케줄러 준비 완료`);
+
+  // 트리거 초기화
+  console.log(`🔔 트리거 초기화 중...`);
+  triggers.loadTriggers();
+  console.log(`🔔 트리거 준비 완료\n`);
 
   // Snowflake 사전 연결 시도
   if (process.env.SNOWFLAKE_PASSWORD && process.env.SNOWFLAKE_PASSWORD !== 'your-snowflake-password-here') {

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>AI Agents Office</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; padding: 10px; font-family: 'Segoe UI', sans-serif; }
@@ -54,11 +55,12 @@
   }
   #chat-header-name { font-weight: 700; font-size: 15px; }
   #chat-header-role { font-size: 11px; color: #8b949e; }
-  #chat-clear-btn {
+  #chat-clear-btn, .export-btn {
     background: rgba(255,255,255,0.06); border: 1px solid #30363d; color: #8b949e;
     padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 11px;
   }
   #chat-clear-btn:hover { color: #f85149; border-color: #f85149; }
+  .export-btn:hover { color: #58a6ff; border-color: #58a6ff; }
 
   #chat-messages {
     flex: 1; overflow-y: auto; padding: 12px 16px;
@@ -296,6 +298,193 @@
     border-top: 1px solid rgba(255,255,255,0.08); color: #88ee99;
   }
   #tooltip .tt-status span { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; background: #88ee99; }
+
+  /* ── Schedule Panel ── */
+  #schedule-panel {
+    flex: 1; overflow-y: auto; padding: 12px; display: none;
+    flex-direction: column; gap: 10px;
+    scrollbar-width: thin; scrollbar-color: #30363d #0d1117;
+  }
+  #schedule-panel::-webkit-scrollbar { width: 6px; }
+  #schedule-panel::-webkit-scrollbar-track { background: #0d1117; }
+  #schedule-panel::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+  .schedule-empty {
+    color: #8b949e; text-align: center; padding: 40px 20px; font-size: 13px; line-height: 1.8;
+  }
+
+  .schedule-card {
+    background: #161b22; border: 1px solid #21262d; border-radius: 10px;
+    padding: 12px 14px; animation: msgIn .2s ease-out; transition: border-color .15s;
+  }
+  .schedule-card:hover { border-color: #30363d; }
+  .schedule-card.enabled { border-left: 4px solid #3fb950; }
+  .schedule-card.disabled { border-left: 4px solid #484f58; }
+  .schedule-card.running { border-left: 4px solid #58a6ff; animation: schedPulse 1.5s ease-in-out infinite; }
+  @keyframes schedPulse { 0%,100% { box-shadow: none; } 50% { box-shadow: 0 0 12px rgba(88,166,255,0.2); } }
+
+  .sched-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .sched-name { font-size: 14px; font-weight: 700; color: #e6edf3; }
+  .sched-toggle {
+    position: relative; width: 36px; height: 20px; border-radius: 10px;
+    background: #21262d; border: 1px solid #30363d; cursor: pointer; transition: all .2s;
+  }
+  .sched-toggle.on { background: #238636; border-color: #2ea043; }
+  .sched-toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 14px; height: 14px; border-radius: 50%; background: #c9d1d9;
+    transition: transform .2s;
+  }
+  .sched-toggle.on::after { transform: translateX(16px); background: #fff; }
+
+  .sched-agent { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
+  .sched-agent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .sched-agent-name { font-size: 12px; font-weight: 600; }
+  .sched-type-tag {
+    font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 8px;
+    background: rgba(88,166,255,0.12); color: #58a6ff; margin-left: 6px;
+  }
+
+  .sched-instruction {
+    font-size: 11px; color: #8b949e; line-height: 1.5; margin-bottom: 8px;
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+
+  .sched-meta { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #484f58; margin-bottom: 8px; }
+  .sched-interval { color: #8b949e; }
+
+  .sched-actions { display: flex; gap: 6px; }
+  .sched-btn {
+    padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 6px;
+    border: 1px solid #30363d; background: #21262d; color: #c9d1d9;
+    cursor: pointer; font-family: 'Segoe UI', sans-serif; transition: all .15s;
+  }
+  .sched-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+  .sched-btn.run-now { border-color: #238636; color: #3fb950; }
+  .sched-btn.run-now:hover { background: #23863622; }
+  .sched-btn.delete { border-color: #da3633; color: #f85149; }
+  .sched-btn.delete:hover { background: #da363322; }
+  .sched-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .sched-last-report {
+    font-size: 11px; color: #adbac7; line-height: 1.5; margin-top: 8px;
+    padding: 8px 10px; background: rgba(0,0,0,0.2); border-radius: 6px;
+    border-left: 2px solid #30363d; max-height: 80px; overflow: hidden;
+  }
+
+  /* Schedule add form */
+  .sched-add-form {
+    background: #161b22; border: 1px dashed #30363d; border-radius: 10px;
+    padding: 14px; display: none; flex-direction: column; gap: 8px;
+  }
+  .sched-add-form.open { display: flex; }
+  .sched-form-label { font-size: 11px; color: #8b949e; font-weight: 600; }
+  .sched-form-input, .sched-form-select, .sched-form-textarea {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+    color: #c9d1d9; padding: 6px 10px; font-size: 12px; font-family: 'Segoe UI', sans-serif;
+    outline: none;
+  }
+  .sched-form-input:focus, .sched-form-select:focus, .sched-form-textarea:focus { border-color: #58a6ff; }
+  .sched-form-textarea { resize: vertical; min-height: 50px; }
+  .sched-form-row { display: flex; gap: 8px; align-items: center; }
+  .sched-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  .sched-add-btn {
+    width: 100%; padding: 8px; background: transparent; border: 1px dashed #30363d;
+    border-radius: 8px; color: #8b949e; cursor: pointer; font-size: 12px;
+    font-family: 'Segoe UI', sans-serif; transition: all .15s;
+  }
+  .sched-add-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+
+  .panel-badge.schedule-count { background: #58a6ff; color: #fff; }
+  .panel-badge.chart-count { background: #d29922; color: #fff; }
+
+  /* ── Chart Panel ── */
+  #chart-panel {
+    flex: 1; overflow-y: auto; padding: 10px; display: none;
+    flex-direction: column; gap: 10px;
+    scrollbar-width: thin; scrollbar-color: #30363d #0d1117;
+  }
+  #chart-panel::-webkit-scrollbar { width: 6px; }
+  #chart-panel::-webkit-scrollbar-track { background: #0d1117; }
+  #chart-panel::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+  .chart-empty {
+    color: #8b949e; text-align: center; padding: 40px 20px; font-size: 13px; line-height: 1.8;
+  }
+
+  .chart-card {
+    background: #161b22; border: 1px solid #21262d; border-radius: 10px;
+    padding: 10px 12px; animation: msgIn .2s ease-out;
+  }
+  .chart-card-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+  }
+  .chart-card-title { font-size: 13px; font-weight: 700; color: #e6edf3; }
+  .chart-card-meta {
+    display: flex; align-items: center; gap: 6px; font-size: 10px; color: #484f58;
+  }
+  .chart-card-agent { display: flex; align-items: center; gap: 4px; }
+  .chart-card-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .chart-card canvas { width: 100% !important; max-height: 220px; }
+
+  .chart-filter-bar {
+    display: flex; gap: 4px; flex-wrap: wrap; padding-bottom: 6px;
+    border-bottom: 1px solid #21262d; margin-bottom: 4px;
+  }
+  .chart-filter-btn {
+    padding: 3px 8px; font-size: 10px; color: #8b949e;
+    background: transparent; border: 1px solid #21262d; border-radius: 12px;
+    cursor: pointer; font-family: 'Segoe UI', sans-serif; transition: all .15s;
+  }
+  .chart-filter-btn:hover { color: #c9d1d9; border-color: #30363d; }
+  .chart-filter-btn.active { color: #f0f6fc; background: #21262d; border-color: #30363d; }
+
+  /* Auto report notification bar */
+  /* ── Trigger cards ── */
+  .trigger-section-title {
+    font-size: 11px; font-weight: 700; color: #484f58; letter-spacing: 1px;
+    text-transform: uppercase; padding: 8px 0 4px; border-top: 1px solid #21262d; margin-top: 6px;
+  }
+  .trigger-card {
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+    padding: 10px 12px; transition: border-color .15s;
+  }
+  .trigger-card.enabled { border-left: 3px solid #d29922; }
+  .trigger-card.disabled { border-left: 3px solid #484f58; opacity: 0.7; }
+  .trig-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .trig-name { font-size: 12px; font-weight: 700; color: #e6edf3; }
+  .trig-desc { font-size: 10px; color: #8b949e; line-height: 1.4; margin-bottom: 6px; }
+  .trig-flow {
+    display: flex; align-items: center; gap: 4px; font-size: 10px; margin-bottom: 6px;
+  }
+  .trig-flow-agent { font-weight: 600; }
+  .trig-flow-arrow { color: #d29922; font-weight: 700; }
+  .trig-meta { font-size: 9px; color: #484f58; display: flex; justify-content: space-between; }
+  .trig-actions { display: flex; gap: 6px; margin-top: 6px; }
+
+  /* Trigger fired notification */
+  .trigger-fired-toast {
+    position: fixed; top: 20px; right: 20px; z-index: 10000;
+    background: #0d2137; border: 1px solid #d29922; border-radius: 10px;
+    padding: 12px 18px; color: #e6edf3; font-size: 12px; line-height: 1.5;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5); animation: toastIn .3s ease-out;
+    max-width: 350px;
+  }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  .trigger-fired-toast .toast-title { font-weight: 700; color: #d29922; margin-bottom: 4px; }
+  .trigger-fired-toast .toast-close {
+    position: absolute; top: 6px; right: 10px; cursor: pointer; color: #8b949e; font-size: 14px;
+  }
+
+  #auto-report-bar {
+    display: none; padding: 6px 12px; background: #0d2137;
+    border-top: 1px solid #1f4a7a; align-items: center; gap: 8px; font-size: 11px;
+  }
+  #auto-report-bar.active { display: flex; }
+  #auto-report-bar .arb-icon { animation: statusPulse 1.5s ease-in-out infinite; color: #58a6ff; }
+  #auto-report-bar .arb-text { color: #8b949e; flex: 1; }
+  #auto-report-bar .arb-name { color: #c9d1d9; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -309,6 +498,8 @@
       <button class="panel-mode-btn active" data-mode="chat" onclick="setPanelMode('chat')">💬 채팅</button>
       <button class="panel-mode-btn" data-mode="minutes" onclick="setPanelMode('minutes')">📋 회의록<span id="minutes-badge" class="panel-badge empty"></span></button>
       <button class="panel-mode-btn" data-mode="approval" onclick="setPanelMode('approval')">🔔 결재<span id="approval-badge" class="panel-badge empty"></span></button>
+      <button class="panel-mode-btn" data-mode="schedule" onclick="setPanelMode('schedule')">⏰ 스케줄<span id="schedule-badge" class="panel-badge empty"></span></button>
+      <button class="panel-mode-btn" data-mode="chart" onclick="setPanelMode('chart')">📊 차트<span id="chart-badge" class="panel-badge empty"></span></button>
     </div>
     <div id="chat-tabs"></div>
     <div id="chat-header">
@@ -316,12 +507,22 @@
         <div id="chat-header-name">AI Office Chat</div>
         <div id="chat-header-role">에이전트를 선택하세요</div>
       </div>
-      <button id="chat-clear-btn" onclick="clearChat()">대화 초기화</button>
+      <div style="display:flex;gap:4px">
+        <button class="export-btn" onclick="exportChat('md')" title="마크다운 내보내기">MD</button>
+        <button class="export-btn" onclick="exportChat('html')" title="HTML 내보내기">HTML</button>
+        <button id="chat-clear-btn" onclick="clearChat()">대화 초기화</button>
+      </div>
     </div>
     <div id="chat-messages"></div>
     <div id="minutes-filter"></div>
     <div id="minutes-panel"></div>
     <div id="approval-panel"></div>
+    <div id="schedule-panel"></div>
+    <div id="chart-panel"></div>
+    <div id="auto-report-bar">
+      <span class="arb-icon">⏰</span>
+      <span class="arb-text">자동 분석 진행 중: <span id="arb-name" class="arb-name"></span></span>
+    </div>
     <div id="collab-bar">
       <span class="collab-label">🤝 협업:</span>
       <div id="collab-agents"></div>
@@ -1253,6 +1454,7 @@ function loop() {
 const CHAT_AGENTS = [
   { id: -1, name: '전체 회의', role: '모든 에이전트 참여', color: '#58a6ff' },
   { id: -2, name: '🤝 협업', role: '에이전트 간 연쇄 분석', color: '#ff9f43' },
+  { id: -3, name: '💌 DM', role: '에이전트 간 직접 대화', color: '#f778ba' },
   ...AGENT_CFG.map(a => ({ id: a.id, name: a.name, role: AGENT_INFO[a.id].title, color: a.color }))
 ];
 
@@ -1281,11 +1483,14 @@ function switchChat(agentId) {
   updateChatHeader();
   renderMessages();
 
-  // 협업 바 표시/숨김
+  // 협업/DM 바 표시/숨김
   const collabBar = document.getElementById('collab-bar');
   if (agentId === -2) {
     collabBar.classList.add('active');
     buildCollabAgentButtons();
+  } else if (agentId === -3) {
+    collabBar.classList.add('active');
+    buildDMAgentButtons();
   } else {
     collabBar.classList.remove('active');
   }
@@ -1377,6 +1582,9 @@ function connectWS() {
       const st = document.getElementById('connection-status');
       st.textContent = '서버 연결됨';
       st.className = 'connected';
+      // 스케줄/트리거 목록 요청
+      requestScheduleList();
+      requestTriggerList();
     };
 
     ws.onclose = () => {
@@ -1438,8 +1646,12 @@ function setPanelMode(mode) {
   show('minutes-filter', mode === 'minutes');
   show('minutes-panel', mode === 'minutes');
   show('approval-panel', mode === 'approval');
+  show('schedule-panel', mode === 'schedule');
+  show('chart-panel', mode === 'chart');
   if (mode === 'minutes') { renderMinutesFilter(); renderMinutes(); }
   if (mode === 'approval') { renderApprovalPanel(); }
+  if (mode === 'schedule') { requestScheduleList(); requestTriggerList(); renderSchedulePanel(); }
+  if (mode === 'chart') { renderChartPanel(); }
 }
 
 // ── Minutes entries ──
@@ -1482,6 +1694,8 @@ function renderMinutesFilter() {
       <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${a.color};margin-right:3px;vertical-align:middle"></span>${a.name}
     </button>`;
   });
+  html += `<button class="minutes-filter-btn" onclick="exportMinutes('md')" title="마크다운">📥 MD</button>`;
+  html += `<button class="minutes-filter-btn" onclick="exportMinutes('html')" title="HTML">📥 HTML</button>`;
   el.innerHTML = html;
 }
 
@@ -1784,6 +1998,119 @@ function handleWSMessage(msg) {
       if (panelMode === 'approval') renderApprovalPanel();
       break;
     }
+    case 'dm_start': {
+      isStreaming = true;
+      document.getElementById('chat-send').disabled = true;
+      setAgentLiveStatus(msg.fromAgentId, 'responding');
+      setAgentLiveStatus(msg.toAgentId, 'responding');
+      break;
+    }
+    case 'dm_end': {
+      isStreaming = false;
+      document.getElementById('chat-send').disabled = false;
+      document.getElementById('chat-input').focus();
+      setAgentLiveStatus(msg.fromAgentId, 'idle');
+      setAgentLiveStatus(msg.toAgentId, 'idle');
+      // 회의록에 기록
+      addMinutesEntry({
+        type: 'chat',
+        agentId: msg.fromAgentId,
+        agentName: `${msg.fromName} ↔ ${msg.toName}`,
+        content: `[DM 완료] ${msg.fromName}이 ${msg.toName}에게 질문하고 답변을 받았습니다.`,
+      });
+      break;
+    }
+    case 'chart_data': {
+      addChartData(msg);
+      break;
+    }
+    case 'schedule_list': {
+      scheduleData = msg.schedules || [];
+      scheduleReports = msg.reports || [];
+      updateScheduleBadge();
+      if (panelMode === 'schedule') renderSchedulePanel();
+      break;
+    }
+    case 'schedule_updated': {
+      const idx = scheduleData.findIndex(s => s.id === msg.schedule.id);
+      if (idx >= 0) scheduleData[idx] = msg.schedule;
+      else scheduleData.push(msg.schedule);
+      updateScheduleBadge();
+      if (panelMode === 'schedule') renderSchedulePanel();
+      break;
+    }
+    case 'schedule_deleted': {
+      scheduleData = scheduleData.filter(s => s.id !== msg.scheduleId);
+      updateScheduleBadge();
+      if (panelMode === 'schedule') renderSchedulePanel();
+      break;
+    }
+    case 'auto_report_start': {
+      autoReportRunning = msg.scheduleId;
+      const bar = document.getElementById('auto-report-bar');
+      bar.classList.add('active');
+      document.getElementById('arb-name').textContent = msg.scheduleName || '';
+      // 스케줄 카드 상태 업데이트
+      if (panelMode === 'schedule') renderSchedulePanel();
+      break;
+    }
+    case 'auto_report': {
+      autoReportRunning = null;
+      document.getElementById('auto-report-bar').classList.remove('active');
+      // 리포트 저장
+      scheduleReports.unshift(msg);
+      if (scheduleReports.length > 20) scheduleReports.length = 20;
+      // 스케줄 카드 lastReportPreview 업데이트
+      const sched = scheduleData.find(s => s.id === msg.scheduleId);
+      if (sched) {
+        sched.lastRun = msg.timestamp;
+        sched.lastReportPreview = msg.preview;
+      }
+      // 회의록에 기록
+      addMinutesEntry({
+        type: 'chat',
+        agentId: msg.agentId ?? -1,
+        agentName: `[자동] ${msg.agentName || msg.scheduleName}`,
+        content: `[자동 리포트: ${msg.scheduleName}] ${(msg.preview || '').slice(0, 150)}`,
+      });
+      updateScheduleBadge();
+      if (panelMode === 'schedule') renderSchedulePanel();
+      break;
+    }
+    case 'auto_report_error': {
+      autoReportRunning = null;
+      document.getElementById('auto-report-bar').classList.remove('active');
+      break;
+    }
+    case 'trigger_list': {
+      triggerData = msg.triggers || [];
+      if (panelMode === 'schedule') renderSchedulePanel();
+      break;
+    }
+    case 'trigger_updated': {
+      const tidx = triggerData.findIndex(t => t.id === msg.trigger.id);
+      if (tidx >= 0) triggerData[tidx] = msg.trigger;
+      else triggerData.push(msg.trigger);
+      if (panelMode === 'schedule') renderSchedulePanel();
+      break;
+    }
+    case 'trigger_deleted': {
+      triggerData = triggerData.filter(t => t.id !== msg.triggerId);
+      if (panelMode === 'schedule') renderSchedulePanel();
+      break;
+    }
+    case 'trigger_fired': {
+      // 토스트 알림
+      showTriggerToast(msg);
+      // 회의록에 기록
+      addMinutesEntry({
+        type: 'chat',
+        agentId: msg.targetAgentId,
+        agentName: `[트리거] ${AGENT_NAME_MAP[msg.targetAgentId] || ''}`,
+        content: `[${msg.triggerName}] ${msg.summary}`,
+      });
+      break;
+    }
     case 'error': {
       const msgs = chatHistories[currentChatAgent];
       msgs.push({ role: 'agent', agentId: msg.agentId || -1, name: '시스템', content: msg.message });
@@ -1793,6 +2120,641 @@ function handleWSMessage(msg) {
       break;
     }
   }
+
+  // source: 'scheduled' 이벤트 처리 — 자동 분석의 스트리밍은 에이전트 상태만 업데이트
+  if (msg.source === 'scheduled') {
+    if (msg.type === 'stream_start') setAgentLiveStatus(msg.agentId, 'responding');
+    if (msg.type === 'tool_activity') {
+      setAgentLiveStatus(msg.agentId, 'querying');
+      setTimeout(() => { if (agentLiveStatus[msg.agentId]?.status === 'querying') setAgentLiveStatus(msg.agentId, 'responding'); }, 2000);
+    }
+    if (msg.type === 'stream_end') setAgentLiveStatus(msg.agentId, 'idle');
+    if (msg.type === 'meeting_start') { [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'meeting')); triggerCanvasMeeting(); }
+    if (msg.type === 'meeting_end') { [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'idle')); endCanvasMeeting(); }
+    if (msg.type === 'collab_start') { (msg.agentIds||[]).forEach(id => setAgentLiveStatus(id, 'meeting')); triggerCanvasCollab(msg.agentIds||[]); }
+    if (msg.type === 'collab_end') { (msg.agentIds||[]).forEach(id => setAgentLiveStatus(id, 'idle')); endCanvasCollab(msg.agentIds||[]); }
+  }
+}
+
+// ── Chart Panel (데이터 시각화) ──────────────────────────────────────────────
+
+const chartDataStore = []; // 최근 차트 데이터 (최대 30개)
+let chartInstances = {};   // canvasId → Chart instance
+let chartFilter = 'all';   // 'all' | agentId(number)
+let chartIdCounter = 0;
+
+function addChartData(msg) {
+  msg._chartId = ++chartIdCounter;
+  chartDataStore.unshift(msg);
+  if (chartDataStore.length > 30) chartDataStore.length = 30;
+  updateChartBadge();
+  if (panelMode === 'chart') renderChartPanel();
+}
+
+function updateChartBadge() {
+  const badge = document.getElementById('chart-badge');
+  if (chartDataStore.length > 0) {
+    badge.textContent = chartDataStore.length;
+    badge.className = 'panel-badge chart-count';
+  } else {
+    badge.textContent = '';
+    badge.className = 'panel-badge empty';
+  }
+}
+
+function setChartFilter(f) {
+  chartFilter = f;
+  renderChartPanel();
+}
+
+function renderChartPanel() {
+  const panel = document.getElementById('chart-panel');
+  if (!panel) return;
+  panel.style.display = 'flex';
+
+  // 기존 차트 인스턴스 파괴
+  Object.values(chartInstances).forEach(c => { try { c.destroy(); } catch(e){} });
+  chartInstances = {};
+
+  let filtered = chartDataStore;
+  if (typeof chartFilter === 'number') {
+    filtered = chartDataStore.filter(d => d.agentId === chartFilter);
+  }
+
+  let html = '';
+
+  // 필터 바
+  const agentIds = [...new Set(chartDataStore.map(d => d.agentId))];
+  html += `<div class="chart-filter-bar">
+    <button class="chart-filter-btn ${chartFilter === 'all' ? 'active' : ''}" onclick="setChartFilter('all')">전체</button>`;
+  agentIds.forEach(id => {
+    const name = AGENT_NAME_MAP[id] || '';
+    const color = AGENT_COLOR_MAP[id] || '#888';
+    html += `<button class="chart-filter-btn ${chartFilter === id ? 'active' : ''}" onclick="setChartFilter(${id})">
+      <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${color};margin-right:3px;vertical-align:middle"></span>${name}
+    </button>`;
+  });
+  html += `</div>`;
+
+  if (filtered.length === 0) {
+    html += `<div class="chart-empty">
+      <div style="font-size:36px;margin-bottom:12px">📊</div>
+      <div style="font-size:15px;font-weight:600;color:#c9d1d9;margin-bottom:8px">차트가 없습니다</div>
+      <div>에이전트가 데이터를 조회하면 자동으로 차트가 생성됩니다.</div>
+    </div>`;
+    panel.innerHTML = html;
+    return;
+  }
+
+  // 차트 카드
+  filtered.forEach(d => {
+    const color = AGENT_COLOR_MAP[d.agentId] || '#888';
+    const name = d.agentName || AGENT_NAME_MAP[d.agentId] || '';
+    const time = d.timestamp ? new Date(d.timestamp).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' }) : '';
+    const canvasId = `chart-cv-${d._chartId}`;
+
+    html += `<div class="chart-card">
+      <div class="chart-card-header">
+        <span class="chart-card-title">${escapeHtml(d.title || '')}</span>
+        <div class="chart-card-meta">
+          <div class="chart-card-agent">
+            <span class="chart-card-dot" style="background:${color}"></span>
+            <span style="color:${color}">${name}</span>
+          </div>
+          <span>${time}</span>
+        </div>
+      </div>
+      <canvas id="${canvasId}" height="200"></canvas>
+    </div>`;
+  });
+
+  panel.innerHTML = html;
+
+  // Chart.js 인스턴스 생성 (DOM 업데이트 후)
+  requestAnimationFrame(() => {
+    filtered.forEach(d => {
+      const canvasId = `chart-cv-${d._chartId}`;
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || !d.chartType) return;
+      try {
+        chartInstances[canvasId] = createChart(canvas, d);
+      } catch (err) {
+        console.warn('Chart render error:', err);
+      }
+    });
+  });
+}
+
+function createChart(canvas, data) {
+  const ctx = canvas.getContext('2d');
+  const isDark = true;
+
+  const baseOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 600 },
+    plugins: {
+      legend: {
+        display: (data.datasets && data.datasets.length > 1) || data.chartType === 'doughnut' || data.chartType === 'radar',
+        position: 'bottom',
+        labels: { color: '#8b949e', font: { size: 10 }, boxWidth: 10, padding: 8 },
+      },
+      tooltip: {
+        backgroundColor: '#161b22',
+        titleColor: '#e6edf3',
+        bodyColor: '#c9d1d9',
+        borderColor: '#30363d',
+        borderWidth: 1,
+        titleFont: { size: 11 },
+        bodyFont: { size: 11 },
+        padding: 8,
+        cornerRadius: 6,
+      },
+    },
+    scales: {},
+  };
+
+  // 축 설정 (bar, line, scatter)
+  if (['bar', 'line', 'scatter'].includes(data.chartType)) {
+    baseOpts.scales = {
+      x: {
+        ticks: { color: '#8b949e', font: { size: 9 }, maxRotation: 45 },
+        grid: { color: '#21262d' },
+        border: { color: '#30363d' },
+      },
+      y: {
+        ticks: { color: '#8b949e', font: { size: 9 } },
+        grid: { color: '#21262d' },
+        border: { color: '#30363d' },
+        reverse: data.options?.reverseY || false,
+      },
+    };
+  }
+
+  // 레이더 설정
+  if (data.chartType === 'radar') {
+    baseOpts.scales = {
+      r: {
+        angleLines: { color: '#21262d' },
+        grid: { color: '#21262d' },
+        pointLabels: { color: '#c9d1d9', font: { size: 10 } },
+        ticks: { color: '#8b949e', backdropColor: 'transparent', font: { size: 9 } },
+      },
+    };
+  }
+
+  const config = {
+    type: data.chartType === 'scatter' ? 'scatter' : data.chartType,
+    data: {
+      labels: data.labels || [],
+      datasets: (data.datasets || []).map(ds => ({
+        ...ds,
+        pointBackgroundColor: ds.pointBackgroundColor || ds.borderColor,
+      })),
+    },
+    options: baseOpts,
+  };
+
+  return new Chart(ctx, config);
+}
+
+// ── Schedule Panel (에이전트 자율 분석 스케줄) ──────────────────────────────
+
+let scheduleData = [];
+let scheduleReports = [];
+let autoReportRunning = null;
+let scheduleFormOpen = false;
+
+const AGENT_NAME_MAP = { 0: '한준혁', 1: '이서연', 2: '김하늘', 3: '박도현', 4: '최재원' };
+const AGENT_COLOR_MAP = { 0: '#4A85D8', 1: '#3AB87A', 2: '#D4A017', 3: '#E05040', 4: '#9055D8' };
+const SCHED_TYPE_LABELS = { chat: '1:1 분석', meeting: '전체 회의', collaboration: '협업 분석' };
+
+function requestScheduleList() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'schedule_list' }));
+  }
+}
+
+function updateScheduleBadge() {
+  const badge = document.getElementById('schedule-badge');
+  const enabled = scheduleData.filter(s => s.enabled).length;
+  if (enabled > 0) {
+    badge.textContent = enabled;
+    badge.className = 'panel-badge schedule-count';
+  } else {
+    badge.textContent = '';
+    badge.className = 'panel-badge empty';
+  }
+}
+
+function formatInterval(minutes) {
+  if (minutes < 60) return `${minutes}분`;
+  if (minutes < 1440) return `${(minutes/60).toFixed(0)}시간`;
+  if (minutes < 10080) return `${(minutes/1440).toFixed(0)}일`;
+  return `${(minutes/10080).toFixed(0)}주`;
+}
+
+function formatTimeAgo(isoStr) {
+  if (!isoStr) return '없음';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return '방금 전';
+  if (mins < 60) return `${mins}분 전`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}시간 전`;
+  return `${Math.floor(hrs/24)}일 전`;
+}
+
+function renderSchedulePanel() {
+  const panel = document.getElementById('schedule-panel');
+  if (!panel) return;
+  panel.style.display = 'flex';
+
+  let html = '';
+
+  // 자동 분석 진행 중 알림
+  if (autoReportRunning) {
+    const rSched = scheduleData.find(s => s.id === autoReportRunning);
+    html += `<div style="background:#0d2137;border:1px solid #1f4a7a;border-radius:8px;padding:10px 12px;font-size:12px;color:#58a6ff;display:flex;align-items:center;gap:8px">
+      <span style="animation:statusPulse 1.5s ease-in-out infinite">⏳</span>
+      <span>${rSched ? rSched.name : ''} 분석 진행 중...</span>
+    </div>`;
+  }
+
+  // 스케줄 카드
+  if (scheduleData.length === 0) {
+    html += `<div class="schedule-empty">
+      <div style="font-size:36px;margin-bottom:12px">⏰</div>
+      <div style="font-size:15px;font-weight:600;color:#c9d1d9;margin-bottom:8px">스케줄이 없습니다</div>
+      <div>아래 버튼으로 자동 분석 스케줄을 추가하세요.</div>
+    </div>`;
+  } else {
+    for (const s of scheduleData) {
+      const isRunning = autoReportRunning === s.id;
+      const statusCls = isRunning ? 'running' : (s.enabled ? 'enabled' : 'disabled');
+      const agentColor = s.agentId !== null ? (AGENT_COLOR_MAP[s.agentId] || '#888') : '#58a6ff';
+      const agentName = s.agentId !== null ? (AGENT_NAME_MAP[s.agentId] || '') : '전체';
+      const typeLabel = SCHED_TYPE_LABELS[s.type] || s.type;
+      const canAct = ws && ws.readyState === WebSocket.OPEN && !isRunning;
+
+      html += `<div class="schedule-card ${statusCls}">
+        <div class="sched-header">
+          <span class="sched-name">${escapeHtml(s.name)}</span>
+          <div class="sched-toggle ${s.enabled ? 'on' : ''}" onclick="toggleSchedule('${s.id}',${!s.enabled})" title="${s.enabled ? '비활성화' : '활성화'}"></div>
+        </div>
+        <div class="sched-agent">
+          <span class="sched-agent-dot" style="background:${agentColor}"></span>
+          <span class="sched-agent-name" style="color:${agentColor}">${agentName}</span>
+          <span class="sched-type-tag">${typeLabel}</span>
+        </div>
+        <div class="sched-instruction">${escapeHtml(s.instruction)}</div>
+        <div class="sched-meta">
+          <span class="sched-interval">🔄 ${formatInterval(s.intervalMinutes)} 간격</span>
+          <span>최근: ${formatTimeAgo(s.lastRun)}</span>
+        </div>
+        <div class="sched-actions">
+          <button class="sched-btn run-now" ${canAct?'':'disabled'} onclick="runScheduleNow('${s.id}')">▶ 지금 실행</button>
+          <button class="sched-btn delete" onclick="deleteSchedule('${s.id}')">삭제</button>
+        </div>
+        ${s.lastReportPreview ? `<div class="sched-last-report">${escapeHtml(s.lastReportPreview)}</div>` : ''}
+      </div>`;
+    }
+  }
+
+  // 추가 폼
+  html += `<div class="sched-add-form ${scheduleFormOpen ? 'open' : ''}" id="sched-add-form">
+    <span class="sched-form-label">스케줄 이름</span>
+    <input class="sched-form-input" id="sched-f-name" placeholder="예: 일일 트렌드 분석">
+    <span class="sched-form-label">유형</span>
+    <select class="sched-form-select" id="sched-f-type" onchange="onSchedTypeChange()">
+      <option value="chat">1:1 에이전트 분석</option>
+      <option value="meeting">전체 회의</option>
+    </select>
+    <div id="sched-f-agent-row">
+      <span class="sched-form-label">에이전트</span>
+      <select class="sched-form-select" id="sched-f-agent">
+        <option value="1">이서연 (경쟁사)</option>
+        <option value="2">김하늘 (트렌드)</option>
+        <option value="3">박도현 (상품기획)</option>
+        <option value="4">최���원 (판매분석)</option>
+      </select>
+    </div>
+    <span class="sched-form-label">분석 지시</span>
+    <textarea class="sched-form-textarea" id="sched-f-instruction" placeholder="에이전트에게 보낼 분석 지시를 입력하세요"></textarea>
+    <div class="sched-form-row">
+      <span class="sched-form-label">간격</span>
+      <input class="sched-form-input" id="sched-f-interval" type="number" min="1" value="60" style="width:80px">
+      <select class="sched-form-select" id="sched-f-unit">
+        <option value="1">분</option>
+        <option value="60" selected>시간</option>
+        <option value="1440">일</option>
+        <option value="10080">주</option>
+      </select>
+    </div>
+    <div class="sched-form-actions">
+      <button class="sched-btn" onclick="scheduleFormOpen=false;renderSchedulePanel()">취소</button>
+      <button class="sched-btn run-now" onclick="submitNewSchedule()">추가</button>
+    </div>
+  </div>`;
+
+  if (!scheduleFormOpen) {
+    html += `<button class="sched-add-btn" onclick="scheduleFormOpen=true;renderSchedulePanel()">+ 새 스케줄 추가</button>`;
+  }
+
+  // 자동 트리거 섹션
+  html += `<div class="trigger-section-title">🔔 자동 트리거 (조건부 연쇄 분석)</div>`;
+  html += renderTriggerSection();
+
+  // 최근 리포트 이력
+  if (scheduleReports.length > 0) {
+    html += `<div style="margin-top:8px;font-size:11px;color:#484f58;font-weight:600;letter-spacing:1px">최근 자동 리포트</div>`;
+    for (const r of scheduleReports.slice(0, 5)) {
+      const color = r.agentId !== null ? (AGENT_COLOR_MAP[r.agentId] || '#888') : '#58a6ff';
+      const time = formatTimeAgo(r.timestamp);
+      html += `<div style="background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:8px 10px;border-left:3px solid ${color}">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+          <span style="color:${color};font-weight:600">${escapeHtml(r.scheduleName||'')}</span>
+          <span style="color:#484f58">${time}</span>
+        </div>
+        <div style="font-size:11px;color:#8b949e;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escapeHtml((r.preview||r.content||'').slice(0,200))}</div>
+      </div>`;
+    }
+  }
+
+  panel.innerHTML = html;
+}
+
+function onSchedTypeChange() {
+  const type = document.getElementById('sched-f-type').value;
+  const row = document.getElementById('sched-f-agent-row');
+  row.style.display = type === 'chat' ? '' : 'none';
+}
+
+function toggleSchedule(id, enabled) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'schedule_toggle', scheduleId: id, enabled }));
+  }
+}
+
+function deleteSchedule(id) {
+  if (!confirm('이 스케줄을 삭제할까요?')) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'schedule_delete', scheduleId: id }));
+  }
+}
+
+function runScheduleNow(id) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'schedule_run_now', scheduleId: id }));
+  }
+}
+
+function submitNewSchedule() {
+  const name = document.getElementById('sched-f-name').value.trim();
+  const type = document.getElementById('sched-f-type').value;
+  const agentId = type === 'chat' ? parseInt(document.getElementById('sched-f-agent').value) : null;
+  const instruction = document.getElementById('sched-f-instruction').value.trim();
+  const intervalVal = parseInt(document.getElementById('sched-f-interval').value) || 1;
+  const unit = parseInt(document.getElementById('sched-f-unit').value);
+  const intervalMinutes = intervalVal * unit;
+
+  if (!name || !instruction) { alert('이름과 분석 지시를 입력하세요.'); return; }
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'schedule_create',
+      schedule: { name, type, agentId, instruction, intervalMinutes }
+    }));
+  }
+  scheduleFormOpen = false;
+  renderSchedulePanel();
+}
+
+// ── 에이전트 간 DM ──────────────────────────────────────────────────────────
+
+let dmFromAgent = -1;
+let dmToAgent = -1;
+
+function buildDMAgentButtons() {
+  const container = document.getElementById('collab-agents');
+  const flowEl = document.getElementById('collab-flow');
+
+  // DM에서는 "보내는 에이전트" → "받는 에이전트" 선택
+  let html = '<span class="collab-label" style="width:100%;margin-bottom:2px">보내는 에이전트:</span>';
+  html += AGENT_CFG.map(a => {
+    const sel = dmFromAgent === a.id;
+    return `<button class="collab-agent-btn ${sel ? 'selected' : ''}" onclick="setDMFrom(${a.id})">
+      <span class="collab-dot" style="background:${a.color}"></span>${a.name}
+    </button>`;
+  }).join('');
+
+  html += '<span class="collab-label" style="width:100%;margin-top:4px;margin-bottom:2px">받는 에이전트:</span>';
+  html += AGENT_CFG.filter(a => a.id !== dmFromAgent).map(a => {
+    const sel = dmToAgent === a.id;
+    return `<button class="collab-agent-btn ${sel ? 'selected' : ''}" onclick="setDMTo(${a.id})">
+      <span class="collab-dot" style="background:${a.color}"></span>${a.name}
+    </button>`;
+  }).join('');
+
+  container.innerHTML = html;
+
+  // 플로우 표시
+  if (dmFromAgent >= 0 && dmToAgent >= 0) {
+    const from = AGENT_CFG.find(a => a.id === dmFromAgent);
+    const to = AGENT_CFG.find(a => a.id === dmToAgent);
+    flowEl.innerHTML = `<span style="color:${from.color};font-weight:600">${from.name}</span>
+      <span class="collab-flow-arrow">💌→</span>
+      <span style="color:${to.color};font-weight:600">${to.name}</span>`;
+  } else {
+    flowEl.innerHTML = '<span style="color:#484f58;font-size:10px">보내는 에이전트와 받는 에이전트를 선택하세요</span>';
+  }
+}
+
+function setDMFrom(id) {
+  dmFromAgent = id;
+  if (dmToAgent === id) dmToAgent = -1; // 같은 에이전트 방지
+  buildDMAgentButtons();
+}
+
+function setDMTo(id) {
+  dmToAgent = id;
+  buildDMAgentButtons();
+}
+
+// ── 리포트 내보내기 ─────────────────────────────────────────────────────────
+
+function downloadFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportChat(format) {
+  const msgs = chatHistories[currentChatAgent] || [];
+  if (msgs.length === 0) { alert('내보낼 대화가 없습니다.'); return; }
+
+  const agent = CHAT_AGENTS.find(a => a.id === currentChatAgent);
+  const agentName = agent ? agent.name : '';
+  const date = new Date().toISOString().split('T')[0];
+  const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+  if (format === 'md') {
+    let md = `# ${agentName} — 대화 리포트\n\n`;
+    md += `> 생성: ${date} ${time}\n\n---\n\n`;
+    msgs.forEach(m => {
+      if (m.role === 'user') {
+        md += `### 👤 사용자\n\n${m.content}\n\n`;
+      } else {
+        const name = m.name || AGENT_NAME_MAP[m.agentId] || agentName;
+        md += `### 🤖 ${name}\n\n${m.content}\n\n`;
+      }
+    });
+    downloadFile(`${agentName}_${date}.md`, md, 'text/markdown;charset=utf-8');
+  } else {
+    let html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${agentName} 대화 리포트</title>
+    <style>body{font-family:'Segoe UI',sans-serif;max-width:700px;margin:40px auto;padding:0 20px;background:#0d1117;color:#c9d1d9}
+    h1{color:#58a6ff;border-bottom:1px solid #21262d;padding-bottom:12px}
+    .msg{margin:16px 0;padding:12px 16px;border-radius:10px;line-height:1.6}
+    .user{background:#1f3a5f;border-bottom-right-radius:4px}
+    .agent{background:#1c2333;border-left:3px solid #58a6ff;border-bottom-left-radius:4px}
+    .name{font-size:12px;font-weight:700;margin-bottom:6px}
+    .meta{color:#484f58;font-size:11px;margin-top:8px;text-align:right}
+    </style></head><body>
+    <h1>${escapeHtml(agentName)} — 대화 리포트</h1>
+    <p style="color:#8b949e;font-size:12px">${date} ${time} 생성</p>`;
+    msgs.forEach(m => {
+      if (m.role === 'user') {
+        html += `<div class="msg user"><div class="name" style="color:#79c0ff">👤 사용자</div>${escapeHtml(m.content).replace(/\n/g,'<br>')}</div>`;
+      } else {
+        const name = m.name || AGENT_NAME_MAP[m.agentId] || agentName;
+        const color = AGENT_COLOR_MAP[m.agentId] || '#58a6ff';
+        html += `<div class="msg agent" style="border-left-color:${color}"><div class="name" style="color:${color}">🤖 ${escapeHtml(name)}</div>${escapeHtml(m.content).replace(/\n/g,'<br>')}</div>`;
+      }
+    });
+    html += `<div class="meta">AI Agents Office — 자동 생성 리포트</div></body></html>`;
+    downloadFile(`${agentName}_${date}.html`, html, 'text/html;charset=utf-8');
+  }
+}
+
+function exportMinutes(format) {
+  if (minutesEntries.length === 0) { alert('내보낼 회의록이 없습니다.'); return; }
+
+  const date = new Date().toISOString().split('T')[0];
+  const time = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+  if (format === 'md') {
+    let md = `# AI Office 회의록\n\n`;
+    md += `> 생성: ${date} ${time} | 총 ${minutesEntries.length}건\n\n---\n\n`;
+    minutesEntries.forEach(e => {
+      const t = new Date(e.timestamp).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' });
+      const typeLabel = MINUTES_TYPE_LABELS[e.type] || e.type;
+      md += `### ${t} — ${e.agentName || ''} [${typeLabel}]\n\n${e.content || ''}\n\n`;
+      if (e.dataReferenced) md += `> 데���터: ${e.dataReferenced}\n\n`;
+    });
+    downloadFile(`회의록_${date}.md`, md, 'text/markdown;charset=utf-8');
+  } else {
+    let html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>AI Office 회의록</title>
+    <style>body{font-family:'Segoe UI',sans-serif;max-width:700px;margin:40px auto;padding:0 20px;background:#0d1117;color:#c9d1d9}
+    h1{color:#58a6ff;border-bottom:1px solid #21262d;padding-bottom:12px}
+    .entry{margin:12px 0;padding:10px 14px;background:#161b22;border:1px solid #21262d;border-radius:8px;line-height:1.5}
+    .entry.instruction{border-left:3px solid #58a6ff}
+    .entry.chat{border-left:3px solid #3fb950}
+    .entry.meeting{border-left:3px solid #bc8cff}
+    .entry.tool_use{border-left:3px solid #d29922}
+    .header{display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px}
+    .name{font-weight:700}.time{color:#484f58}
+    .content{font-size:12px;color:#adbac7}
+    .meta{color:#484f58;font-size:11px;margin-top:16px;text-align:right}
+    </style></head><body>
+    <h1>AI Office 회의록</h1>
+    <p style="color:#8b949e;font-size:12px">${date} ${time} 생성 · ${minutesEntries.length}건</p>`;
+    minutesEntries.forEach(e => {
+      const t = new Date(e.timestamp).toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' });
+      const typeLabel = MINUTES_TYPE_LABELS[e.type] || e.type;
+      const color = AGENT_COLOR_MAP[e.agentId] || '#888';
+      html += `<div class="entry ${e.type}">
+        <div class="header"><span class="name" style="color:${color}">${escapeHtml(e.agentName||'')} · ${typeLabel}</span><span class="time">${t}</span></div>
+        <div class="content">${escapeHtml(e.content||'').replace(/\n/g,'<br>')}</div>
+      </div>`;
+    });
+    html += `<div class="meta">AI Agents Office — 자동 생성 회의록</div></body></html>`;
+    downloadFile(`회의록_${date}.html`, html, 'text/html;charset=utf-8');
+  }
+}
+
+// ── Trigger UI ──────────────────────────────────────────────────────────────
+
+let triggerData = [];
+
+function requestTriggerList() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'trigger_list' }));
+  }
+}
+
+function toggleTrigger(id, enabled) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'trigger_toggle', triggerId: id, enabled }));
+  }
+}
+
+function deleteTriggerItem(id) {
+  if (!confirm('이 트리거를 삭제할까요?')) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'trigger_delete', triggerId: id }));
+  }
+}
+
+function renderTriggerSection() {
+  if (triggerData.length === 0) return '<div style="color:#484f58;font-size:11px;text-align:center;padding:8px">트리거가 없습니다</div>';
+
+  return triggerData.map(t => {
+    const srcColor = AGENT_COLOR_MAP[t.sourceAgentId] || '#888';
+    const tgtColor = AGENT_COLOR_MAP[t.targetAgentId] || '#888';
+    const srcName = AGENT_NAME_MAP[t.sourceAgentId] || '';
+    const tgtName = AGENT_NAME_MAP[t.targetAgentId] || '';
+    const statusCls = t.enabled ? 'enabled' : 'disabled';
+
+    return `<div class="trigger-card ${statusCls}">
+      <div class="trig-header">
+        <span class="trig-name">${escapeHtml(t.name)}</span>
+        <div class="sched-toggle ${t.enabled ? 'on' : ''}" onclick="toggleTrigger('${t.id}',${!t.enabled})" title="${t.enabled ? '비활성화' : '활성화'}"></div>
+      </div>
+      <div class="trig-desc">${escapeHtml(t.description || '')}</div>
+      <div class="trig-flow">
+        <span class="trig-flow-agent" style="color:${srcColor}">${srcName}</span>
+        <span class="trig-flow-arrow">→</span>
+        <span style="color:#d29922">조건 감지</span>
+        <span class="trig-flow-arrow">→</span>
+        <span class="trig-flow-agent" style="color:${tgtColor}">${tgtName}</span>
+      </div>
+      <div class="trig-meta">
+        <span>발동 ${t.triggerCount || 0}회${t.lastTriggered ? ' · 최근 ' + formatTimeAgo(t.lastTriggered) : ''}</span>
+        <span>쿨다운 ${t.cooldownMinutes || 30}분</span>
+      </div>
+      <div class="trig-actions">
+        <button class="sched-btn delete" onclick="deleteTriggerItem('${t.id}')" style="padding:3px 8px;font-size:10px">삭제</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showTriggerToast(msg) {
+  const srcName = AGENT_NAME_MAP[msg.sourceAgentId] || '';
+  const tgtName = AGENT_NAME_MAP[msg.targetAgentId] || '';
+  const toast = document.createElement('div');
+  toast.className = 'trigger-fired-toast';
+  toast.innerHTML = `
+    <span class="toast-close" onclick="this.parentElement.remove()">×</span>
+    <div class="toast-title">🔔 트리거 발동: ${escapeHtml(msg.triggerName || '')}</div>
+    <div style="font-size:11px;color:#8b949e">${srcName} → ${tgtName}</div>
+    <div style="margin-top:4px;font-size:11px">${escapeHtml(msg.summary || '')}</div>
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => { if (toast.parentElement) toast.remove(); }, 8000);
 }
 
 // ── Send ──
@@ -1814,7 +2776,19 @@ function sendMessage() {
   isStreaming = true;
   document.getElementById('chat-send').disabled = true;
 
-  if (currentChatAgent === -2) {
+  if (currentChatAgent === -3) {
+    // DM 모드
+    if (dmFromAgent < 0 || dmToAgent < 0) {
+      alert('보내는 에이전트와 받는 에이전트를 선택하세요.');
+      isStreaming = false;
+      document.getElementById('chat-send').disabled = false;
+      return;
+    }
+    const fromName = AGENT_CFG.find(a => a.id === dmFromAgent)?.name;
+    const toName = AGENT_CFG.find(a => a.id === dmToAgent)?.name;
+    ws.send(JSON.stringify({ type: 'agent_dm', fromAgentId: dmFromAgent, toAgentId: dmToAgent, question: text }));
+    addMinutesEntry({ type: 'instruction', agentId: dmFromAgent, agentName: fromName, content: `[DM: ${fromName} → ${toName}] ${text}` });
+  } else if (currentChatAgent === -2) {
     // 협업 모드
     if (collabSelectedAgents.length < 2) {
       alert('협업할 에이전트를 2명 이상 선택하세요.');
