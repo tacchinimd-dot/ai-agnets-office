@@ -1694,7 +1694,7 @@ function renderMessages() {
     } else if (m.role === 'agent') {
       const agentData = CHAT_AGENTS.find(a => a.id === m.agentId) || {};
       div.style.borderLeftColor = agentData.color || '#555';
-      div.innerHTML = `<div class="msg-name" style="color:${agentData.color || '#888'}">${m.name || agentData.name}</div>${formatMessage(m.content)}`;
+      div.innerHTML = `<div class="msg-name" style="color:${agentData.color || '#888'}">${m.name || agentData.name}</div><div class="msg-content">${formatMessage(m.content)}</div>`;
     } else {
       div.textContent = m.content;
     }
@@ -1737,8 +1737,16 @@ function appendStreamDelta(agentId, delta) {
   if (last && last.role === 'agent' && last.agentId === agentId && last.streaming) {
     last.content += delta;
   }
-  // 현재 탭이 맞으면 실시간 업데이트
-  renderMessages();
+  // 스트리밍 중: 마지막 메시지 DOM만 직접 업데이트 (전체 재렌더링 방지 → 깜빡임 해결)
+  const box = document.getElementById('chat-messages');
+  const lastBubble = box?.lastElementChild;
+  if (lastBubble && lastBubble.classList.contains('chat-msg') && lastBubble.classList.contains('agent')) {
+    const contentEl = lastBubble.querySelector('.msg-content') || lastBubble;
+    if (last) contentEl.innerHTML = (last.name ? `<div class="msg-name" style="color:${AGENT_CFG.find(a=>a.id===last.agentId)?.color||'#adf'}">${last.name}</div>` : '') + formatMessage(last.content);
+    box.scrollTop = box.scrollHeight;
+  } else {
+    renderMessages();
+  }
 }
 
 // ── WebSocket ──
@@ -2051,7 +2059,7 @@ function handleWSMessage(msg) {
     case 'meeting_start': {
       isStreaming = true;
       document.getElementById('chat-send').disabled = true;
-      [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'meeting'));
+      AGENT_CFG.forEach(a => setAgentLiveStatus(a.id, 'meeting'));
       triggerCanvasMeeting();
       break;
     }
@@ -2059,7 +2067,7 @@ function handleWSMessage(msg) {
       isStreaming = false;
       document.getElementById('chat-send').disabled = false;
       document.getElementById('chat-input').focus();
-      [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'idle'));
+      AGENT_CFG.forEach(a => setAgentLiveStatus(a.id, 'idle'));
       endCanvasMeeting();
       break;
     }

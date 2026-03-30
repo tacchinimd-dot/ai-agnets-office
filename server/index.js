@@ -1167,7 +1167,7 @@ async function handleMeeting(ws, userMessage) {
     try {
       let fullResponse = '';
       let loopCount = 0;
-      const maxLoops = 3; // 회의 모드에서는 3회로 제한 (속도 유지)
+      const maxLoops = 5; // 도구 사용 포함 충분한 루프
       const tools = getToolsForAgent(agentId);
 
       while (loopCount < maxLoops) {
@@ -1176,8 +1176,8 @@ async function handleMeeting(ws, userMessage) {
 
         const apiParams = {
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1024,
-          system: agent.systemPrompt + '\n\n[회의 모드] 여러 에이전트가 참여하는 회의입니다. 데이터 조회가 필요하면 도구를 적극 사용하되, 최종 답변은 간결하게 핵심만 정리하세요 (3-7문장).',
+          max_tokens: 2048,
+          system: agent.systemPrompt + '\n\n[회의 모드] 여러 에이전트가 참여하는 회의입니다. 데이터 조회가 필요하면 도구를 적극 사용하되, 최종 답변은 간결하게 핵심만 정리하세요 (3-7문장). 답변이 잘리지 않도록 완결된 문장으로 마무리하세요.',
           messages,
         };
 
@@ -1270,7 +1270,10 @@ async function handleMeeting(ws, userMessage) {
 
     } catch (err) {
       console.error(`[Meeting API Error] ${agent.name}:`, err.message);
-      ws.send(JSON.stringify({ type: 'error', agentId, message: `${agent.name} API 오류: ${err.message}` }));
+      const errorMsg = `(${agent.name} 응답 오류: ${err.message})`;
+      ws.send(JSON.stringify({ type: 'stream_delta', agentId, delta: errorMsg }));
+      allResponses.push({ name: agent.name, role: agent.role, content: errorMsg });
+      ws.send(JSON.stringify({ type: 'stream_end', agentId }));
     }
   }
 
