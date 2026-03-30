@@ -14,9 +14,116 @@ const { PRODUCT_PLANNING_TOOLS } = require('./product-tools');
 const { TREND_AGENT_TOOLS, loadMusinsaData, loadTiktokData, loadGoogleTrends, queryRanking, getRankingSummary, getCategoryTrend, queryTiktokHashtags, getTiktokSummary, queryGoogleTrends, getGoogleTrendsSummary, runMusinsaCrawler, runTiktokCrawler } = require('./trend-tools');
 // snowflake.js는 더 이상 에이전트에서 사용하지 않음 (전원 KG API 전환)
 const { loadAll, queryProducts, getBrandSummary, compareBrands, getProductCount } = require('./competitors');
+const { execFile } = require('child_process');
 const scheduler = require('./scheduler');
 const { buildCharts } = require('./chart-builder');
 const triggers = require('./triggers');
+
+// ── 경쟁사 크롤러 설정 ──────────────────────────────────────────────────────
+const CRAWLER_ROOT = 'C:\\Users\\AD0903\\brand_crawler';
+const COMPETITOR_CRAWLERS = [
+  { brand: 'Alo Yoga', dir: 'alo_crawler', script: 'crawler.py' },
+  { brand: 'Wilson', dir: 'wilson_crawler', script: 'crawler.py' },
+  { brand: 'Sergio Tacchini', dir: 'sergio_crawler', script: 'crawler.py' },
+  { brand: 'Ralph Lauren', dir: 'ralphlauren_crawler', script: 'rl_crawler.py' },
+  { brand: 'Lacoste', dir: 'lacoste_crawler', script: 'lacoste_crawler.py' },
+];
+let lastCompetitorCrawl = null;
+
+function canRunCompetitorCrawler() {
+  if (!lastCompetitorCrawl) {
+    // 가장 최근 크롤링 파일 날짜로 추정
+    try {
+      const aloDir = path.join(CRAWLER_ROOT, 'alo_crawler');
+      const files = fs.readdirSync(aloDir).filter(f => /vision\.xlsx$/.test(f)).sort();
+      if (files.length > 0) {
+        const match = files[files.length - 1].match(/(\d{8})/);
+        if (match) {
+          const d = match[1];
+          lastCompetitorCrawl = `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  if (!lastCompetitorCrawl) return { allowed: true };
+
+  const last = new Date(lastCompetitorCrawl);
+  const now = new Date();
+  const diffDays = (now - last) / (1000 * 60 * 60 * 24);
+
+  if (diffDays < 7) {
+    const nextDate = new Date(last.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return {
+      allowed: false,
+      reason: `마지막 크롤링: ${lastCompetitorCrawl}. 주 1회 제한으로 ${nextDate.toISOString().slice(0, 10)} 이후에 실행 가능합니다.`,
+      lastCrawl: lastCompetitorCrawl,
+      nextAllowed: nextDate.toISOString().slice(0, 10),
+    };
+  }
+
+  return { allowed: true };
+}
+
+function runSingleCrawler(brand, crawlerDir, script) {
+  return new Promise((resolve) => {
+    const scriptPath = path.join(crawlerDir, script);
+    if (!fs.existsSync(scriptPath)) {
+      resolve({ brand, success: false, reason: `스크립트 없음: ${scriptPath}` });
+      return;
+    }
+
+    console.log(`[Crawler] ${brand} 크롤링 중... (${script})`);
+
+    execFile('python', [script], {
+      cwd: crawlerDir,
+      timeout: 300000, // 5분 타임아웃
+    }, (err, stdout, stderr) => {
+      if (err) {
+        console.error(`[Crawler Error] ${brand}:`, err.message);
+        resolve({ brand, success: false, reason: `실행 오류: ${err.message}`, stderr: stderr?.slice(-300) });
+        return;
+      }
+      console.log(`[Crawler] ${brand} 완료`);
+      resolve({ brand, success: true, output: stdout.slice(-300) });
+    });
+  });
+}
+
+async function runCompetitorCrawler() {
+  const check = canRunCompetitorCrawler();
+  if (!check.allowed) {
+    return { success: false, ...check };
+  }
+
+  const results = [];
+  for (const { brand, dir, script } of COMPETITOR_CRAWLERS) {
+    const crawlerDir = path.join(CRAWLER_ROOT, dir);
+    const result = await runSingleCrawler(brand, crawlerDir, script);
+    results.push(result);
+  }
+
+  const successCount = results.filter(r => r.success).length;
+  const failCount = results.filter(r => !r.success).length;
+
+  // 데이터 리로드
+  let reloadResult = { total: 0, errors: [] };
+  try {
+    reloadResult = loadAll();
+  } catch (e) {
+    console.error('[Crawler] 데이터 리로드 실패:', e.message);
+  }
+
+  lastCompetitorCrawl = new Date().toISOString().slice(0, 10);
+
+  return {
+    success: successCount > 0,
+    date: lastCompetitorCrawl,
+    summary: `${successCount}개 성공, ${failCount}개 실패`,
+    productsLoaded: reloadResult.total,
+    details: results.map(r => ({ brand: r.brand, success: r.success, reason: r.reason })),
+  };
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -488,6 +595,15 @@ async function executeTool(toolName, toolInput, context = {}) {
     return JSON.stringify(result, null, 2);
   }
 
+  if (toolName === 'run_competitor_crawler') {
+    if (!toolInput.confirm) {
+      return JSON.stringify({ success: false, reason: 'confirm: true가 필요합니다' });
+    }
+    console.log(`[Tool] run_competitor_crawler — 경쟁사 5개 브랜드 크롤링 시작`);
+    const result = await runCompetitorCrawler();
+    return JSON.stringify(result, null, 2);
+  }
+
   throw new Error(`알 수 없는 도구: ${toolName}`);
 }
 
@@ -820,6 +936,7 @@ const TOOL_LABELS = {
   get_tiktok_summary: '🎵 TikTok 요약',
   run_musinsa_crawler: '🕷️ 무신사 크롤링',
   run_tiktok_crawler: '🕷️ TikTok 크롤링',
+  run_competitor_crawler: '🕷️ 경쟁사 크롤링',
   query_naver_keywords: '🔎 네이버 키워드 검색',
   get_rising_keywords: '🚀 급상승 키워드',
   query_product_info: '📦 상품 마스터 조회',

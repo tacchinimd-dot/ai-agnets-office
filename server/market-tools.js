@@ -68,6 +68,22 @@ const MARKET_AGENT_TOOLS = [
       },
       required: ['metric']
     }
+  },
+  {
+    name: 'run_competitor_crawler',
+    description: `경쟁사 5개 브랜드의 최신 상품 데이터를 크롤링합니다. 주 1회 제한.
+Alo Yoga, Wilson, Sergio Tacchini, Ralph Lauren, Lacoste 5개 브랜드의 신상품을 순차 크롤링하고 데이터를 갱신합니다.
+크롤링 완료 후 자동으로 데이터가 리로드됩니다.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        confirm: {
+          type: 'boolean',
+          description: '크롤링 실행을 확인합니다. 반드시 true로 설정해야 합니다.'
+        }
+      },
+      required: ['confirm']
+    }
   }
 ];
 

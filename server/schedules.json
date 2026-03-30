@@ -1,0 +1,62 @@
+[
+  {
+    "id": "sched_1",
+    "name": "일일 트렌드 브리핑",
+    "type": "chat",
+    "agentId": 2,
+    "agents": null,
+    "instruction": "오늘의 주요 트렌드를 요약해주세요. 무신사 랭킹 변화, TikTok 인기 해시태그, 네이버 검색 트렌드 중 주목할 만한 변화를 데이터와 함께 정리해주세요.",
+    "intervalMinutes": 240,
+    "enabled": false,
+    "lastRun": null,
+    "lastReportPreview": null
+  },
+  {
+    "id": "sched_2",
+    "name": "주간 판매 리포트",
+    "type": "chat",
+    "agentId": 4,
+    "agents": null,
+    "instruction": "최근 2주간 채널별 판매 실적을 분석하고, 전주 대비 변화가 큰 카테고리를 중심으로 핵심 수치와 함께 요약해주세요.",
+    "intervalMinutes": 1440,
+    "enabled": false,
+    "lastRun": null,
+    "lastReportPreview": null
+  },
+  {
+    "id": "sched_3",
+    "name": "경쟁사 동향 체크",
+    "type": "chat",
+    "agentId": 1,
+    "agents": null,
+    "instruction": "먼저 run_competitor_crawler 도구로 최신 데이터를 크롤링하세요(데이터가 7일 이상 경과했을 수 있음). 크롤링 후 경쟁사 5개 브랜드의 상품 동향을 분석하고, 주목할만한 가격대/카테고리 변화와 우리 브랜드에 대한 시사점을 요약해주세요.",
+    "intervalMinutes": 1440,
+    "enabled": false,
+    "lastRun": null,
+    "lastReportPreview": null
+  },
+  {
+    "id": "sched_4",
+    "name": "상품 기획 인사이트",
+    "type": "chat",
+    "agentId": 3,
+    "agents": null,
+    "instruction": "최근 카테고리별 판매 성과와 재고 현황을 분석하고, 다음 시즌 기획 방향에 대한 인사이트를 데이터 기반으로 제안해주세요.",
+    "intervalMinutes": 2880,
+    "enabled": false,
+    "lastRun": null,
+    "lastReportPreview": null
+  },
+  {
+    "id": "sched_5",
+    "name": "전략 종합 회의",
+    "type": "meeting",
+    "agentId": null,
+    "agents": null,
+    "instruction": "이번 주 주요 데이터를 바탕으로 전략 방향을 점검하고, 다음 주 우선과제를 정리해주세요. 각자 데이터를 조회하여 근거를 제시해주세요.",
+    "intervalMinutes": 10080,
+    "enabled": false,
+    "lastRun": null,
+    "lastReportPreview": null
+  }
+]
