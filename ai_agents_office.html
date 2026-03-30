@@ -684,16 +684,16 @@ const AGENT_INFO = [
 ];
 
 const MR = [
-  // 대회의실 — CEO Room 하단, 전체 회의용 (10석)
+  // 대회의실 — CEO Room 하단, 전체 회의 전용 (10석)
   { x:20, y:440, w:270, h:420, label:'CONFERENCE ROOM', tableX:155, tableY:650,
     seats:[{x:60,y:600},{x:110,y:600},{x:160,y:600},{x:210,y:600},{x:260,y:600},
            {x:60,y:710},{x:110,y:710},{x:160,y:710},{x:210,y:710},{x:260,y:710}] },
-  // 소회의실 — 우측 상단, 자율 상담용
+  // 소회의실 1 — 우측 상단, 자율 상담용 (3석)
   { x:1290, y:60,  w:285, h:400, label:'MEETING ROOM 1', tableX:1432, tableY:255,
-    seats:[{x:1362,y:300},{x:1432,y:300},{x:1502,y:300},{x:1362,y:220},{x:1432,y:220},{x:1502,y:220}] },
-  // 소회의실 — 우측 하단, 자율 상담용
+    seats:[{x:1382,y:290},{x:1482,y:290},{x:1432,y:220}] },
+  // 소회의실 2 — 우측 하단, 자율 상담용 (3석)
   { x:1290, y:460, w:285, h:400, label:'MEETING ROOM 2', tableX:1432, tableY:655,
-    seats:[{x:1362,y:700},{x:1432,y:700},{x:1502,y:700},{x:1362,y:620},{x:1432,y:620},{x:1502,y:620}] }
+    seats:[{x:1382,y:690},{x:1482,y:690},{x:1432,y:620}] }
 ];
 
 // ── Pre-render wood background ────────────────────────────────────────────────
@@ -815,13 +815,13 @@ const agents = AGENT_CFG.map(cfg => new Agent(cfg));
 
 let activeMeetingRoom = -1; // -1 = 회의 없음, 0 = MR1, 1 = MR2
 
-// 전체 회의: 5명 모두 회의실 1로 이동
+// 전체 회의: 7명 전원 대회의실(MR[0])로 이동
 function triggerCanvasMeeting() {
   if (activeMeetingRoom >= 0) return; // 이미 회의 중
   activeMeetingRoom = 0;
-  const mr = MR[0];
+  const mr = MR[0]; // 대회의실 (10석)
   agents.forEach((agent, i) => {
-    if (agent.state === 'returning') { /* 복귀 중이면 방향 전환 */ }
+    if (i >= mr.seats.length) return; // 좌석 초과 방지
     agent.seatIdx = i;
     agent.mrIdx = 0;
     agent.state = 'toMeeting';
@@ -1389,8 +1389,9 @@ function drawMeetingRoom(c, mr, frame) {
   roundRect(c, tx-100,ty-22,200,44,8,tg,'#3a2010',1.5);
   c.strokeStyle='rgba(255,255,255,0.15)'; c.lineWidth=1;
   c.beginPath(); c.moveTo(tx-92,ty-19); c.lineTo(tx+92,ty-19); c.stroke();
-  for (let i=0;i<3;i++) { const cx2=tx-66+i*66, cy2=ty+32; roundRect(c,cx2-16,cy2,32,12,3,'#2a2040','#1a1030',1); roundRect(c,cx2-14,cy2-20,28,22,3,'#3a2e55','#2a2040',1); }
-  for (let i=0;i<3;i++) { const cx2=tx-66+i*66, cy2=ty-48; roundRect(c,cx2-16,cy2+8,32,12,3,'#2a2040','#1a1030',1); roundRect(c,cx2-14,cy2-14,28,22,3,'#3a2e55','#2a2040',1); }
+  // 소회의실 의자 (테이블 앞 2개 + 뒤 1개 = 3석)
+  for (let i=0;i<2;i++) { const cx2=tx-50+i*100, cy2=ty+32; roundRect(c,cx2-16,cy2,32,12,3,'#2a2040','#1a1030',1); roundRect(c,cx2-14,cy2-20,28,22,3,'#3a2e55','#2a2040',1); }
+  { const cx2=tx, cy2=ty-48; roundRect(c,cx2-16,cy2+8,32,12,3,'#2a2040','#1a1030',1); roundRect(c,cx2-14,cy2-14,28,22,3,'#3a2e55','#2a2040',1); }
   // 모니터 — 벽면에 붙임 (테이블에서 멀리)
   const mx=mr.x+mr.w-8, my=mr.y+30;
   roundRect(c,mx-84,my,84,56,4,'#111118','#2a2a35',1.5);
