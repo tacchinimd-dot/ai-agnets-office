@@ -768,7 +768,7 @@ class Agent {
     this.blinkTimer--;
     if (this.blinkTimer <= 0) { this.blinking = true; this.blinkDuration = 6; this.blinkTimer = 80+Math.floor(Math.random()*120); }
     if (this.blinking) { this.blinkDuration--; if (this.blinkDuration<=0) this.blinking=false; }
-    if (this.state !== 'idle') this.walkPhase += 0.18;
+    if (this.state === 'toMeeting' || this.state === 'returning') this.walkPhase += 0.18;
 
     switch(this.state) {
       case 'idle': {
@@ -1577,10 +1577,27 @@ function loop() {
   drawMeetingLines(c);
 
   // Walking / meeting agents — front-facing, sorted by Y
-  // Draw any agent not sitting at their desk (including idle agents displaced from desk)
   agents.filter(a=> a.state!=='idle' || (Math.abs(a.x-a.hx)>=5 || Math.abs(a.y-a.hy)>=5) ).sort((a,b)=>a.y-b.y).forEach(agent=>{
-    drawCharacter(c, agent, agent.x, agent.y, true, false);
-    // name tag for moving agents
+    const isSeated = agent.state === 'inMeeting';
+    if (isSeated) {
+      // 회의실에서 앉아있는 모습: 의자 + 캐릭터 (다리 없음, 정면)
+      const cx = agent.x, cy = agent.y;
+      // 의자 좌석
+      roundRect(c, cx-16, cy+2, 32, 10, 3, '#2a2040', '#1a1030', 1);
+      // 의자 등받이 (뒷줄이면 위쪽, 앞줄이면 아래쪽)
+      const chairBackY = agent.seatIdx !== undefined && agent.mrIdx >= 0 ? cy-18 : cy-18;
+      roundRect(c, cx-14, chairBackY, 28, 20, 3, '#3a2e55', '#2a2040', 1);
+      // 의자 다리
+      c.strokeStyle='#1a1025'; c.lineWidth=2;
+      c.beginPath(); c.moveTo(cx-12,cy+12); c.lineTo(cx-12,cy+20); c.stroke();
+      c.beginPath(); c.moveTo(cx+12,cy+12); c.lineTo(cx+12,cy+20); c.stroke();
+      // 캐릭터 앉은 자세 (drawLegs=false, showBack=false = 정면)
+      drawCharacter(c, agent, cx, cy, false, false);
+    } else {
+      // 걷는 모습 (drawLegs=true)
+      drawCharacter(c, agent, agent.x, agent.y, true, false);
+    }
+    // name tag
     c.font='bold 9px Segoe UI'; c.textAlign='center';
     c.fillStyle='rgba(8,12,28,0.75)';
     roundRect(c, agent.x-22, agent.y+6, 44, 14, 4, 'rgba(8,12,28,0.75)');
