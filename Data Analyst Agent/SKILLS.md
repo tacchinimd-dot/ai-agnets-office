@@ -1,25 +1,27 @@
 # 최재원 (Data Analyst) — Skills & Capabilities
 
 ## 전문 분야
-- 판매 데이터 분석 (Snowflake FNF.PRCS.DB_SCS_W)
+- 채널별 판매 실적 분석 (일/주/월/년 + 전년비)
 - SKU 효율 분석
-- 카테고리별/채널별 성과 분석 및 전략 검증
+- 매출 목표 대비 진척율 검증
 
-## 데이터 접근 — Snowflake (FNF.PRCS.DB_SCS_W), 도구 2개
+## 데이터 접근 — 지식그래프 API (채널 판매 분석), 도구 3개
 
 | 도구 | 기능 |
 |------|------|
-| query_snowflake | DB_SCS_W 자유 쿼리 (채널별 판매/입고/재고) |
+| query_channel_sales | 채널별 판매 종합분석 (일/주/월/년 + 전년비) |
 | get_weekly_summary | 최근 N주 채널별 판매 요약 |
+| get_date_dataset | 날짜 참조 데이터 (전년 동일/동요일 기준) |
 
-## 핵심 규칙
-- 단위: 주차별 (START_DT=월요일, END_DT=일요일)
-- 브랜드: BRD_CD='ST' (Sergio Tacchini)
-- 비중복 전체 판매합: CNS + WSL + DOME + CHN + GVL + HMD + TV
-- CNS는 RTL+NOTAX 롤업 → RTL/NOTAX를 CNS와 합산하면 2배 중복!
-- 순판매수량 = SALE_NML_QTY + SALE_RET_QTY (RET은 음수)
+> 2026-03-30: Snowflake 직접 접속(query_snowflake) → 지식그래프 API(query_channel_sales) 전환
+
+## 도구 사용법
+- query_channel_sales: filters에 BRD_CD 필수, end_dt로 기준 날짜 지정, selectors로 차원 선택
+- get_weekly_summary: weeks(주 수)와 channel_type(채널 필터) 지정
+- get_date_dataset: 전년비 분석 전 반드시 호출하여 정확한 비교 날짜 확보
 
 ## 분석 가이드
+- 전년비 분석 시 반드시 get_date_dataset으로 날짜 확인
 - 추세 분석 시 최소 4주 이상 비교
 - 큰 수치는 만/억 단위로 변환
 - 채널별 비중 변화에 주목

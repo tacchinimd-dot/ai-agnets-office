@@ -1,53 +1,80 @@
 // tools.js — 최재원(Data Analyst)용 Claude tool_use 도구 정의
+// KG API (지식그래프) 기반 — Snowflake 직접 접속 불필요
 
-// Claude API에 전달할 tool 스펙
 const DATA_ANALYST_TOOLS = [
   {
-    name: 'query_snowflake',
-    description: `Snowflake DB에서 SELECT 쿼리를 실행합니다.
-대상 테이블: FNF.PRCS.DB_SCS_W (주차별 판매/입고/재고 데이터)
+    name: 'query_channel_sales',
+    description: `지식그래프 API를 통해 채널별 판매 데이터를 조회합니다.
+일/주/월/년 단위의 판매 종합분석과 전년비 비교가 가능합니다.
 
-주요 차원 컬럼:
-- START_DT (DATE, 주 시작일=월요일), END_DT (DATE, 주 종료일=일요일)
-- BRD_CD (브랜드, 현재 'ST'=Sergio Tacchini만 존재)
-- SESN (시즌), PART_CD (파트), PRDT_CD (상품코드), COLOR_CD, SIZE_CD
+사용 가능한 selectors (조회 차원):
+- BRD_CD: 브랜드코드
+- SHOP_ID: 매장코드
+- SHOP_NM: 매장명
+- ANAL_CNTRY_NM: 판매채널-국가
+- ANLYS_ON_OFF_CLS_NM: 온라인/오프라인
+- ANLYS_AREA_NM: 판매채널-지역
+- CHANNEL_TYPE: 판매채널-채널
+- DX_KIDS_YN: 디스커버리 성인/키즈
+- SAME_SHOP: 동일매장 여부
 
-주요 채널 접미사:
-- CNS (위탁합계, RTL+NOTAX 포함 → 다른채널과 중복집계 주의!)
-- WSL (사입), DOME (도매), CHN (중국), GVL (글로벌), HMD (홍마대), TV (태베)
-- ※ 비중복 전체합: CNS + WSL + DOME + CHN + GVL + HMD + TV
+사용 가능한 filters (필터):
+- 위 selectors와 동일한 필드에 system_code 값을 지정
+- 예: { system_code: "ST", system_field_name: "BRD_CD" } → Sergio Tacchini만
 
-주요 지표 패턴 (채널 접미사를 붙여 사용):
-- SALE_NML_QTY_{ch} + SALE_RET_QTY_{ch} = 순판매수량 (RET은 음수)
-- SALE_NML_TAG_AMT_{ch} + SALE_RET_TAG_AMT_{ch} = TAG기준매출
-- SALE_NML_SALE_AMT_{ch} + SALE_RET_SALE_AMT_{ch} = 실제판매금액
-- SALE_NML_SUPP_AMT_{ch} + SALE_RET_SUPP_AMT_{ch} = 공급가매출
-- DELV_NML_QTY_{ch} / DELV_RET_QTY_{ch} = 입고/반입 수량
-- STOR_QTY / STOR_TAG_AMT = 입고수량/입고TAG금액
-- STOCK_QTY / STOCK_TAG_AMT = 재고수량/재고TAG금액
-- AC_ 접두사 = 누적(Accumulated) 버전
+periods (기간):
+- end_dt: 기준일자 (YYYY-MM-DD), 이 날짜 기준으로 일/주/월/년 실적 + 전년비 자동 계산
 
-데이터 범위: 2022-10 ~ 현재, 주차별 약 81만행
-제약: SELECT만 가능, 최대 200행 반환, 30초 타임아웃`,
+반환 데이터: 일매출, 주매출, 월매출, 년매출, 전년 동기 대비, 매장수, 누적판매액, 목표 진척율 등`,
     input_schema: {
       type: 'object',
       properties: {
-        sql: {
+        selectors: {
+          type: 'array',
+          description: '조회 차원 목록. 예: [{ "system_field_name": "CHANNEL_TYPE" }]',
+          items: {
+            type: 'object',
+            properties: {
+              system_field_name: {
+                type: 'string',
+                enum: ['BRD_CD', 'SHOP_ID', 'SHOP_NM', 'ANAL_CNTRY_NM', 'ANLYS_ON_OFF_CLS_NM', 'ANLYS_AREA_NM', 'CHANNEL_TYPE', 'DX_KIDS_YN', 'SAME_SHOP'],
+              }
+            },
+            required: ['system_field_name']
+          }
+        },
+        filters: {
+          type: 'array',
+          description: '필터 조건 목록. 예: [{ "system_code": "ST", "system_field_name": "BRD_CD" }]',
+          items: {
+            type: 'object',
+            properties: {
+              system_code: { type: 'string', description: '필터 값' },
+              system_field_name: { type: 'string', description: '필터 대상 필드' }
+            },
+            required: ['system_code', 'system_field_name']
+          }
+        },
+        end_dt: {
           type: 'string',
-          description: '실행할 SELECT SQL 쿼리. FNF.PRCS.DB_SCS_W 테이블 대상.'
+          description: '기준 날짜 (YYYY-MM-DD). 이 날짜 기준으로 일/주/월/년 실적과 전년비를 계산합니다.'
+        },
+        same_shop: {
+          type: 'boolean',
+          description: '동일매장 비교 여부 (기본값: true). 기존점/신규점/폐점 구분 표시'
         },
         purpose: {
           type: 'string',
-          description: '이 쿼리를 실행하는 이유 (분석 컨텍스트)'
+          description: '이 조회를 수행하는 이유 (분석 컨텍스트)'
         }
       },
-      required: ['sql', 'purpose']
+      required: ['filters', 'end_dt', 'purpose']
     }
   },
   {
     name: 'get_weekly_summary',
-    description: `최근 N주간 주차별 채널별 판매 요약을 가져옵니다.
-전체 채널 합계(비중복)와 주요 채널별 실적을 한번에 조회합니다.`,
+    description: `최근 N주간 채널별 판매 요약을 지식그래프 API로 조회합니다.
+채널별(온라인/오프라인/지역별) 실적을 한번에 비교할 수 있습니다.`,
     input_schema: {
       type: 'object',
       properties: {
@@ -55,47 +82,25 @@ const DATA_ANALYST_TOOLS = [
           type: 'number',
           description: '조회할 최근 주 수 (기본 4, 최대 12)'
         },
-        metric: {
+        channel_type: {
           type: 'string',
-          enum: ['sale_qty', 'sale_amt', 'tag_amt'],
-          description: 'sale_qty=순판매수량, sale_amt=실제판매금액, tag_amt=TAG매출'
+          description: '특정 채널 타입 필터 (생략 시 전체). 예: "직영점", "백화점", "온라인"'
         }
       },
-      required: ['weeks', 'metric']
+      required: ['weeks']
+    }
+  },
+  {
+    name: 'get_date_dataset',
+    description: `오늘 기준 날짜 데이터셋을 조회합니다.
+일/주/월/년 단위의 시작일·종료일과 전년 동일/동요일 기준 날짜를 제공합니다.
+전년비 분석 전에 반드시 이 도구로 날짜를 확인하세요.`,
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: []
     }
   }
 ];
 
-// get_weekly_summary용 SQL 생성
-function buildWeeklySummarySQL(weeks, metric) {
-  weeks = Math.min(Math.max(1, weeks || 4), 12);
-
-  const metricMap = {
-    sale_qty: { nml: 'SALE_NML_QTY', ret: 'SALE_RET_QTY', label: '순판매수량' },
-    sale_amt: { nml: 'SALE_NML_SALE_AMT', ret: 'SALE_RET_SALE_AMT', label: '실제판매금액' },
-    tag_amt: { nml: 'SALE_NML_TAG_AMT', ret: 'SALE_RET_TAG_AMT', label: 'TAG매출' },
-  };
-
-  const m = metricMap[metric] || metricMap.sale_amt;
-  const channels = ['CNS', 'WSL', 'DOME', 'CHN', 'GVL', 'HMD', 'TV'];
-
-  const channelCols = channels.map(ch =>
-    `SUM(${m.nml}_${ch} + ${m.ret}_${ch}) AS ${ch}`
-  ).join(',\n    ');
-
-  const totalExpr = channels.map(ch =>
-    `SUM(${m.nml}_${ch} + ${m.ret}_${ch})`
-  ).join(' + ');
-
-  return `SELECT
-    START_DT, END_DT,
-    ${channelCols},
-    ${totalExpr} AS TOTAL
-  FROM FNF.PRCS.DB_SCS_W
-  WHERE BRD_CD = 'ST'
-  GROUP BY START_DT, END_DT
-  ORDER BY START_DT DESC
-  LIMIT ${weeks}`;
-}
-
-module.exports = { DATA_ANALYST_TOOLS, buildWeeklySummarySQL };
+module.exports = { DATA_ANALYST_TOOLS };

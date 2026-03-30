@@ -263,29 +263,40 @@ function buildCharts(toolName, rawResult) {
     }
 
     // ── Snowflake 쿼리 결과 (범용) ────────────────
-    if ((toolName === 'query_snowflake' || toolName === 'query_product_db' || toolName === 'query_naver_keywords') && Array.isArray(data) && data.length > 0) {
-      const chart = buildGenericChart(data, toolName);
-      if (chart) charts.push(chart);
+    if ((toolName === 'query_channel_sales' || toolName === 'query_product_info' || toolName === 'query_product_cost' || toolName === 'query_naver_keywords' || toolName === 'get_product_stock_info')) {
+      const rows = Array.isArray(data) ? data : (data.data && Array.isArray(data.data) ? data.data : null);
+      if (rows && rows.length > 0) {
+        const chart = buildGenericChart(rows, toolName);
+        if (chart) charts.push(chart);
+      }
     }
 
     // ── 주간 판매 요약 ────────────────────────────
-    if (toolName === 'get_weekly_summary' && Array.isArray(data) && data.length > 0) {
-      const channels = ['CNS', 'WSL', 'DOME', 'CHN', 'GVL', 'HMD', 'TV'].filter(ch => data[0][ch] !== undefined);
-      if (channels.length > 0) {
-        charts.push({
-          chartType: data.length > 3 ? 'line' : 'bar',
-          title: '채널별 주간 판매',
-          labels: data.map(d => d.START_DT || d.END_DT || ''),
-          datasets: channels.map((ch, i) => ({
-            label: ch,
-            data: data.map(d => d[ch] || 0),
-            borderColor: CHART_COLORS[i % CHART_COLORS.length],
-            backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + (data.length > 3 ? '33' : '99'),
-            borderWidth: 2,
-            fill: data.length > 3,
-            tension: 0.3,
-          })),
-        });
+    if (toolName === 'get_weekly_summary') {
+      const rows = Array.isArray(data) ? data : (data.data && Array.isArray(data.data) ? data.data : null);
+      if (rows && rows.length > 0) {
+        // KG API 결과: 채널별 컬럼이 있으면 기존 방식, 없으면 범용 차트
+        const channels = ['CNS', 'WSL', 'DOME', 'CHN', 'GVL', 'HMD', 'TV'].filter(ch => rows[0][ch] !== undefined);
+        if (channels.length > 0) {
+          charts.push({
+            chartType: rows.length > 3 ? 'line' : 'bar',
+            title: '채널별 주간 판매',
+            labels: rows.map(d => d.START_DT || d.END_DT || ''),
+            datasets: channels.map((ch, i) => ({
+              label: ch,
+              data: rows.map(d => d[ch] || 0),
+              borderColor: CHART_COLORS[i % CHART_COLORS.length],
+              backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + (rows.length > 3 ? '33' : '99'),
+              borderWidth: 2,
+              fill: rows.length > 3,
+              tension: 0.3,
+            })),
+          });
+        } else {
+          // KG API 범용 차트
+          const chart = buildGenericChart(rows, toolName);
+          if (chart) charts.push(chart);
+        }
       }
     }
 

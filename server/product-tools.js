@@ -1,137 +1,133 @@
 // product-tools.js — 박도현(Product Planning MD)용 Claude tool_use 도구 정의
+// KG API (지식그래프) 기반 — Snowflake 직접 접속 불필요
 
 const PRODUCT_PLANNING_TOOLS = [
   {
-    name: 'query_product_db',
-    description: `Snowflake에서 상품 기획 관련 데이터를 SELECT 쿼리로 조회합니다.
-
-사용 가능한 테이블:
-
-1. FNF.PRCS.DB_PRDT — 상품 마스터 (26,500개, 129컬럼)
-   핵심 컬럼: PRDT_CD, STYLE_CD, PRDT_NM, BRD_CD, SESN, ITEM(아이템코드), ITEM_NM,
-   PRDT_KIND_CD/NM(상품종류), PARENT_PRDT_KIND_CD/NM(상위종류), SEX/SEX_NM(성별),
-   TAG_PRICE, FAB_TYPE/FAB_TYPE_NM(소재유형), MIX_RATE(혼용률), FIT_USR/FIT_USR_NM(핏),
-   CAT/CAT_NM(카테고리), SUB_CAT/SUB_CAT_NM(서브카테고리), SUB_CAT_DTL/SUB_CAT_DTL_NM,
-   ORD_QTY(발주수량), COLOR_CNT(색상수), ORIGIN/ORIGIN_NM(원산지),
-   LENGTH_CD/LENGTH_NM(기장), DSGNR_NM(디자이너), SALE_DT_1ST(최초판매일)
-   BRD_CD: 'ST'=Sergio Tacchini
-
-2. FNF.MKT.CTGR_SALES_W — 카테고리별 주차 판매+재고 (350,190행)
-   컬럼: START_DT, STOCK_START_DT, STOCK_END_DT, BRD_CD, SESN,
-   CAT_NM, SUB_CAT_NM, TOTAL_SALE_QTY, TOTAL_SALE_AMT,
-   DOMESTIC_SALE_QTY, DOMESTIC_SALE_AMT, STOCK_QTY, WH_STOCK_QTY, SH_STOCK_QTY, AVG4_STOCK_QTY
-
-3. FNF.PRCS.DB_COST_MST — 원가 마스터 (69,109행)
-   컬럼: PRDT_CD, BRD_CD, SESN, PART_CD, QTY, ORIGIN,
-   TAG_AMT(TAG가), HQ_SUPPLY_AMT(본사공급가), MFAC_COST_AMT(공장원가),
-   MARKUP(마크업), FOB_COST, EXCHAGE_RATE(환율), MFAC_COMPY_NM(공장명)
-
-4. FNF.MKT.DM_FNF_PRDT_RNK_W — 자사 상품 판매 랭킹 (166,866행)
-   컬럼: START_DT, END_DT, BRD_CD, GENDER, NEW_CAT1/2/3,
-   RNK(순위), STYLE_CD, PRDT_NM, MOV(변동), TAG_PRICE, CUR_SALE_AMT(판매금액)
-
-5. FNF.PRCS.DB_SCS_STOCK — 재고 현황 (252,460행)
-
-6. FNF.PRCS.DW_PRDT_PRICE — 채널별 가격 (48,024행)
-   컬럼: MALL_ID, PRDT_CD, TAG_PRICE, SALE_PRICE
-
-7. FNF.PRCS.DB_PRDT_SIMILAR_ML — ML 유사상품 (52,134행)
-   컬럼: BRD_CD, STYLE_CD, SIMILAR_STYLE_CD, RANKING
-
-제약: SELECT만 가능, 최대 200행, 30초 타임아웃.`,
+    name: 'query_product_info',
+    description: `지식그래프 API로 상품 마스터 정보를 조회합니다.
+품번, 브랜드, 카테고리, 시즌, 성별 등으로 필터링하여 상품 속성을 검색합니다.
+반환: 제품코드, 제품명, 브랜드, 시즌, 아이템, 카테고리, 소비자가, 성별, 소재, 최초판매일 등 29개 컬럼`,
     input_schema: {
       type: 'object',
       properties: {
-        sql: {
-          type: 'string',
-          description: '실행할 SELECT SQL 쿼리'
+        filters: {
+          type: 'array',
+          description: '필터 조건. 예: [{ "system_code": "ST", "system_field_name": "BRD_CD" }, { "system_code": "26S", "system_field_name": "SESN" }]',
+          items: {
+            type: 'object',
+            properties: {
+              system_code: { type: 'string' },
+              system_field_name: { type: 'string', enum: ['BRD_CD','PRDT_CD','SESN','ITEM_GROUP','ITEM','ITEM_NM','SEX_NM','ADULT_KIDS_NM','PARENT_PRDT_KIND_NM_WAS','PRDT_NM','CAT_NM','SUB_CAT_NM','DOMAIN_NM'] }
+            },
+            required: ['system_code', 'system_field_name']
+          }
         },
-        purpose: {
-          type: 'string',
-          description: '이 쿼리를 실행하는 이유 (기획 컨텍스트)'
-        }
+        purpose: { type: 'string', description: '조회 목적 (기획 컨텍스트)' }
       },
-      required: ['sql', 'purpose']
+      required: ['filters', 'purpose']
+    }
+  },
+  {
+    name: 'query_product_cost',
+    description: `지식그래프 API로 스타일별 PO 원가를 조회합니다.
+생산원가, 마크업, 공급가, 협력사, 환율 등을 포함합니다.
+주의: MFAC_COST_AMT는 VAT 제외이므로 실제 원가/마크업 계산 시 ×1.1 필요`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        filters_product: {
+          type: 'array',
+          description: '상품 필터. 예: [{ "system_code": "ST", "system_field_name": "BRD_CD" }]',
+          items: {
+            type: 'object',
+            properties: { system_code: { type: 'string' }, system_field_name: { type: 'string' } },
+            required: ['system_code', 'system_field_name']
+          }
+        },
+        filters_order: {
+          type: 'array',
+          description: '오더 필터. 예: [{ "system_code": "한국", "system_field_name": "PO_CNTRY_NM" }]',
+          items: {
+            type: 'object',
+            properties: { system_code: { type: 'string' }, system_field_name: { type: 'string' } },
+            required: ['system_code', 'system_field_name']
+          }
+        },
+        purpose: { type: 'string', description: '조회 목적' }
+      },
+      required: ['filters_product', 'purpose']
     }
   },
   {
     name: 'get_category_performance',
-    description: `카테고리별 최근 N주 판매+재고 성과를 조회합니다.
-어떤 카테고리를 강화/축소할지 판단하는 데 활용합니다.`,
+    description: `시즌 의류 카테고리/아이템별 발주·입고·판매·재고·판매율을 조회합니다.
+당해 시즌과 전년 시즌을 비교하여 카테고리 성과를 분석합니다.`,
     input_schema: {
       type: 'object',
       properties: {
-        weeks: {
-          type: 'number',
-          description: '조회할 최근 주 수 (기본 4, 최대 12)'
-        },
-        category: {
-          type: 'string',
-          description: '특정 카테고리만 필터 (생략 시 전체)'
-        }
+        current_sesn: { type: 'string', description: '당해 시즌 (예: "26S")' },
+        current_term_start: { type: 'string', description: '기간판매 시작일 (YYYY-MM-DD)' },
+        current_term_end: { type: 'string', description: '기간판매 종료일 (YYYY-MM-DD)' },
+        current_acum_end: { type: 'string', description: '누적판매 종료일 (YYYY-MM-DD)' },
+        previous_sesn: { type: 'string', description: '전년 시즌 (예: "25S")' },
+        previous_term_start: { type: 'string', description: '전년 기간판매 시작일' },
+        previous_term_end: { type: 'string', description: '전년 기간판매 종료일' },
+        previous_acum_end: { type: 'string', description: '전년 누적판매 종료일' },
+        previous_season_end: { type: 'string', description: '전년 시즌마감일' },
+        category: { type: 'string', description: '특정 카테고리 필터 (생략 시 전체)' }
       },
-      required: ['weeks']
+      required: ['current_sesn', 'current_term_start', 'current_term_end', 'current_acum_end', 'previous_sesn', 'previous_term_start', 'previous_term_end', 'previous_acum_end', 'previous_season_end']
     }
   },
   {
     name: 'get_top_selling_styles',
-    description: `최근 주차 자사 상품 판매 랭킹 TOP N을 조회합니다.
-어떤 스타일이 잘 팔리는지, 공통 패턴은 무엇인지 파악합니다.`,
+    description: `기간 내 판매 TOP 스타일 랭킹을 조회합니다.
+판매액/판매수량/재고 기준으로 상위 스타일을 분석합니다.`,
     input_schema: {
       type: 'object',
       properties: {
-        limit: {
-          type: 'number',
-          description: '조회할 상위 N개 (기본 20, 최대 50)'
-        },
-        gender: {
-          type: 'string',
-          description: '성별 필터 (예: "남성", "여성", 생략 시 전체)'
-        },
-        category: {
-          type: 'string',
-          description: '카테고리 필터 (예: "상의", "하의", 생략 시 전체)'
-        }
+        start_dt: { type: 'string', description: '기간 시작일 (YYYY-MM-DD)' },
+        end_dt: { type: 'string', description: '기간 종료일 (YYYY-MM-DD)' },
+        limit: { type: 'number', description: '조회 상위 N개 (기본 20)' },
+        category: { type: 'string', description: '카테고리 필터 (생략 시 전체)' },
+        gender: { type: 'string', description: '성별 필터 (예: "남성", "여성", 생략 시 전체)' }
       },
-      required: []
+      required: ['start_dt', 'end_dt']
+    }
+  },
+  {
+    name: 'get_similar_styles',
+    description: `특정 품번의 전년도 유사상품을 조회합니다.
+ML 기반 유사도 분석 결과를 반환합니다.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        prdt_cd: { type: 'string', description: '품번 (제품코드). 예: "ST25FDWDJ93056"' }
+      },
+      required: ['prdt_cd']
+    }
+  },
+  {
+    name: 'get_product_stock_info',
+    description: `상품 재고 현황을 조회합니다.
+물류재고, 매장재고, 전체재고를 카테고리/아이템별로 분석합니다.`,
+    input_schema: {
+      type: 'object',
+      properties: {
+        filters: {
+          type: 'array',
+          description: '필터 조건. 예: [{ "system_code": "ST", "system_field_name": "BRD_CD" }]',
+          items: {
+            type: 'object',
+            properties: { system_code: { type: 'string' }, system_field_name: { type: 'string' } },
+            required: ['system_code', 'system_field_name']
+          }
+        },
+        end_dt: { type: 'string', description: '기준일자 (YYYY-MM-DD, 생략 시 오늘)' }
+      },
+      required: ['filters']
     }
   }
 ];
 
-// get_category_performance용 SQL
-function buildCategoryPerformanceSQL(weeks, category) {
-  weeks = Math.min(Math.max(1, weeks || 4), 12);
-  const catFilter = category ? `AND CAT_NM LIKE '%${category.replace(/'/g, "''")}%'` : '';
-
-  return `SELECT
-    START_DT, CAT_NM, SUB_CAT_NM,
-    SUM(TOTAL_SALE_QTY) AS SALE_QTY,
-    SUM(TOTAL_SALE_AMT) AS SALE_AMT,
-    SUM(STOCK_QTY) AS STOCK_QTY,
-    SUM(WH_STOCK_QTY) AS WH_STOCK,
-    SUM(SH_STOCK_QTY) AS SH_STOCK
-  FROM FNF.MKT.CTGR_SALES_W
-  WHERE BRD_CD = 'ST' ${catFilter}
-  GROUP BY START_DT, CAT_NM, SUB_CAT_NM
-  ORDER BY START_DT DESC, SALE_AMT DESC
-  LIMIT ${weeks * 30}`;
-}
-
-// get_top_selling_styles용 SQL
-function buildTopSellingSQL(limit, gender, category) {
-  limit = Math.min(Math.max(1, limit || 20), 50);
-  const genderFilter = gender ? `AND GENDER LIKE '%${gender.replace(/'/g, "''")}%'` : '';
-  const catFilter = category ? `AND (NEW_CAT1 LIKE '%${category.replace(/'/g, "''")}%' OR NEW_CAT2 LIKE '%${category.replace(/'/g, "''")}%')` : '';
-
-  return `SELECT
-    r.START_DT, r.RNK, r.STYLE_CD, r.PRDT_NM, r.TAG_PRICE, r.CUR_SALE_AMT, r.MOV,
-    r.GENDER, r.NEW_CAT1, r.NEW_CAT2
-  FROM FNF.MKT.DM_FNF_PRDT_RNK_W r
-  WHERE r.BRD_CD = 'ST'
-    AND r.START_DT = (SELECT MAX(START_DT) FROM FNF.MKT.DM_FNF_PRDT_RNK_W WHERE BRD_CD='ST')
-    ${genderFilter} ${catFilter}
-  ORDER BY r.RNK ASC
-  LIMIT ${limit}`;
-}
-
-module.exports = { PRODUCT_PLANNING_TOOLS, buildCategoryPerformanceSQL, buildTopSellingSQL };
+module.exports = { PRODUCT_PLANNING_TOOLS };

@@ -249,27 +249,44 @@
   .panel-badge.minutes-count { background: #388bfd; color: #fff; }
   .panel-badge.approval-count { background: #d29922; color: #fff; }
 
-  /* ── Collaboration UI ── */
-  #collab-bar {
-    display: none; padding: 6px 12px; background: #1c1f2b;
-    border-top: 1px solid #30363d; gap: 4px; flex-wrap: wrap; align-items: center;
+  /* ── Consultation Block (에이전트 상담 시각화) ── */
+  .consultation-block {
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+    padding: 10px 14px; margin: 6px 0; font-size: 12px;
+    border-left: 3px solid #58a6ff; animation: msgIn .2s ease-out;
   }
-  #collab-bar.active { display: flex; }
-  .collab-label { font-size: 11px; color: #8b949e; margin-right: 4px; white-space: nowrap; }
-  .collab-agent-btn {
-    padding: 3px 8px; font-size: 10px; border-radius: 10px;
-    border: 1px solid #30363d; background: transparent; color: #8b949e;
-    cursor: pointer; font-family: 'Segoe UI', sans-serif; transition: all .15s;
+  .consultation-block.consultation-pending {
+    border-left-color: #d29922;
+    background: #1a1a0e;
   }
-  .collab-agent-btn:hover { border-color: #58a6ff; color: #c9d1d9; }
-  .collab-agent-btn.selected { background: #21262d; border-color: #58a6ff; color: #58a6ff; font-weight: 600; }
-  .collab-agent-btn .collab-dot {
-    display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 3px; vertical-align: middle;
+  .consultation-block.consultation-done {
+    border-left-color: #3fb950;
+    background: #0e1a12;
   }
-  .collab-flow {
-    font-size: 11px; color: #58a6ff; margin: 2px 8px; display: flex; align-items: center; gap: 4px; width: 100%;
+  .consult-header {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 12px; color: #c9d1d9; cursor: pointer;
   }
-  .collab-flow-arrow { color: #484f58; }
+  .consult-icon { font-size: 14px; }
+  .consult-toggle {
+    margin-left: auto; font-size: 10px; color: #484f58;
+    transition: transform .2s;
+  }
+  .consultation-block.expanded .consult-toggle { transform: rotate(180deg); }
+  .consult-question {
+    font-size: 11px; color: #8b949e; margin-top: 6px;
+    font-style: italic; padding-left: 22px;
+  }
+  .consult-response {
+    font-size: 12px; color: #adbac7; margin-top: 8px;
+    padding: 8px 10px; background: rgba(255,255,255,0.03);
+    border-radius: 6px; line-height: 1.5;
+    max-height: 0; overflow: hidden; transition: max-height .3s ease;
+  }
+  .consultation-block.expanded .consult-response {
+    max-height: 500px;
+  }
+  .consultation-block.consultation-pending .consult-response { display: none; }
 
   /* ── Tooltip ── */
   #tooltip {
@@ -523,11 +540,7 @@
       <span class="arb-icon">⏰</span>
       <span class="arb-text">자동 분석 진행 중: <span id="arb-name" class="arb-name"></span></span>
     </div>
-    <div id="collab-bar">
-      <span class="collab-label">🤝 협업:</span>
-      <div id="collab-agents"></div>
-      <div id="collab-flow" class="collab-flow"></div>
-    </div>
+    <!-- consultation visualization is handled inline in chat messages -->
     <div id="chat-input-area">
       <textarea id="chat-input" placeholder="메시지를 입력하세요... (Enter로 전송, Shift+Enter 줄바꿈)" rows="1"></textarea>
       <button id="chat-send" onclick="sendMessage()">전송</button>
@@ -794,6 +807,51 @@ function endCanvasMeeting() {
       agent.mrIdx = -1;
       agent.partner = null;
       setAgentLiveStatus(agent.id, 'walking');
+    }
+  });
+}
+
+// ── 에이전트 상담: 두 에이전트가 Meeting Room 2로 이동 ─────────────────────
+let activeConsultations = []; // [{callingId, targetId}]
+
+function triggerCanvasConsultation(callingAgentId, targetAgentId) {
+  const mr = MR[1]; // Meeting Room 2 사용
+  const pair = [callingAgentId, targetAgentId];
+  activeConsultations.push({ callingId: callingAgentId, targetId: targetAgentId });
+
+  pair.forEach((id, i) => {
+    const agent = agents.find(a => a.id === id);
+    if (!agent) return;
+    // 이미 회의 중이면 스킵
+    if (agent.state === 'inMeeting' || agent.state === 'toMeeting') return;
+    agent.seatIdx = i;
+    agent.mrIdx = 1;
+    agent.state = 'toMeeting';
+    agent.setTarget(mr.seats[i].x, mr.seats[i].y);
+    agent.statusText = '상담 이동 중';
+    setAgentLiveStatus(agent.id, 'walking');
+  });
+}
+
+function endCanvasConsultation(callingAgentId, targetAgentId) {
+  // 해당 상담 제거
+  activeConsultations = activeConsultations.filter(
+    c => !(c.callingId === callingAgentId && c.targetId === targetAgentId)
+  );
+
+  // 아직 다른 상담에 참여 중인지 확인
+  [callingAgentId, targetAgentId].forEach(id => {
+    const stillInConsult = activeConsultations.some(c => c.callingId === id || c.targetId === id);
+    if (!stillInConsult) {
+      const agent = agents.find(a => a.id === id);
+      if (agent && (agent.state === 'inMeeting' || agent.state === 'toMeeting')) {
+        agent.state = 'returning';
+        agent.setTarget(agent.hx, agent.hy);
+        agent.statusText = '자리로 복귀 중';
+        agent.seatIdx = -1;
+        agent.mrIdx = -1;
+        setAgentLiveStatus(agent.id, 'walking');
+      }
     }
   });
 }
@@ -1183,12 +1241,16 @@ function drawWorkstation(c, agent, frame) {
     for (const lx of [hx-14, hx+14]) {
       c.beginPath(); c.moveTo(lx,hy+14); c.lineTo(lx,hy+24); c.stroke();
     }
-    // 부재중 / 회의 중 badge
+    // 부재중 / 회의 중 / 상담 중 badge
     c.font='bold 11px Segoe UI'; c.textAlign='center';
     if (agent.state === 'toMeeting' || agent.state === 'inMeeting') {
-      roundRect(c, hx-30, hy-10, 60, 22, 8, 'rgba(100,60,200,0.88)', 'rgba(180,140,255,0.5)', 1);
+      const isConsulting = activeConsultations.some(c => c.callingId === agent.id || c.targetId === agent.id);
+      const badgeLabel = isConsulting ? '상담 중' : '회의 중';
+      const bgColor = isConsulting ? 'rgba(50,140,200,0.88)' : 'rgba(100,60,200,0.88)';
+      const borderColor = isConsulting ? 'rgba(100,180,255,0.5)' : 'rgba(180,140,255,0.5)';
+      roundRect(c, hx-30, hy-10, 60, 22, 8, bgColor, borderColor, 1);
       c.fillStyle='#fff';
-      c.fillText('회의 중', hx, hy+5);
+      c.fillText(badgeLabel, hx, hy+5);
     } else {
       roundRect(c, hx-30, hy-10, 60, 22, 8, 'rgba(220,50,50,0.88)', 'rgba(255,120,120,0.5)', 1);
       c.fillStyle='#fff';
@@ -1453,8 +1515,6 @@ function loop() {
 
 const CHAT_AGENTS = [
   { id: -1, name: '전체 회의', role: '모든 에이전트 참여', color: '#58a6ff' },
-  { id: -2, name: '🤝 협업', role: '에이전트 간 연쇄 분석', color: '#ff9f43' },
-  { id: -3, name: '💌 DM', role: '에이전트 간 직접 대화', color: '#f778ba' },
   ...AGENT_CFG.map(a => ({ id: a.id, name: a.name, role: AGENT_INFO[a.id].title, color: a.color }))
 ];
 
@@ -1482,18 +1542,6 @@ function switchChat(agentId) {
   buildTabs();
   updateChatHeader();
   renderMessages();
-
-  // 협업/DM 바 표시/숨김
-  const collabBar = document.getElementById('collab-bar');
-  if (agentId === -2) {
-    collabBar.classList.add('active');
-    buildCollabAgentButtons();
-  } else if (agentId === -3) {
-    collabBar.classList.add('active');
-    buildDMAgentButtons();
-  } else {
-    collabBar.classList.remove('active');
-  }
 
   // 하단 agent-card 하이라이트
   document.querySelectorAll('.agent-card').forEach((card, i) => {
@@ -1534,7 +1582,11 @@ function renderMessages() {
   msgs.forEach(m => {
     const div = document.createElement('div');
     div.className = 'chat-msg ' + m.role;
-    if (m.role === 'agent') {
+    if (m.role === 'consultation') {
+      // 상담 블록: HTML 직접 삽입
+      div.className = '';
+      div.innerHTML = m.content;
+    } else if (m.role === 'agent') {
       const agentData = CHAT_AGENTS.find(a => a.id === m.agentId) || {};
       div.style.borderLeftColor = agentData.color || '#555';
       div.innerHTML = `<div class="msg-name" style="color:${agentData.color || '#888'}">${m.name || agentData.name}</div>${formatMessage(m.content)}`;
@@ -1832,75 +1884,6 @@ function handleApproval(approvalId, decision) {
   renderApprovalPanel();
 }
 
-// ── Collaboration (에이전트 간 협업) ──────────────────────────────────────────
-
-const collabSelectedAgents = []; // 선택된 에이전트 ID 순서 배열
-
-function buildCollabAgentButtons() {
-  const container = document.getElementById('collab-agents');
-  container.innerHTML = AGENT_CFG.map(a => {
-    const sel = collabSelectedAgents.includes(a.id);
-    const order = sel ? collabSelectedAgents.indexOf(a.id) + 1 : '';
-    return `<button class="collab-agent-btn ${sel ? 'selected' : ''}" onclick="toggleCollabAgent(${a.id})">
-      <span class="collab-dot" style="background:${a.color}"></span>${a.name}${order ? ' (' + order + ')' : ''}
-    </button>`;
-  }).join('');
-  updateCollabFlow();
-}
-
-function toggleCollabAgent(id) {
-  const idx = collabSelectedAgents.indexOf(id);
-  if (idx >= 0) {
-    collabSelectedAgents.splice(idx, 1);
-  } else {
-    collabSelectedAgents.push(id);
-  }
-  buildCollabAgentButtons();
-}
-
-function updateCollabFlow() {
-  const flowEl = document.getElementById('collab-flow');
-  if (collabSelectedAgents.length < 2) {
-    flowEl.innerHTML = '<span style="color:#484f58;font-size:10px">에이전트를 2명 이상 순서대로 선택하세요</span>';
-    return;
-  }
-  const flow = collabSelectedAgents.map(id => {
-    const a = AGENT_CFG.find(c => c.id === id);
-    return `<span style="color:${a.color};font-weight:600">${a.name}</span>`;
-  }).join(' <span class="collab-flow-arrow">→</span> ');
-  flowEl.innerHTML = flow;
-}
-
-function triggerCanvasCollab(agentIds) {
-  // 협업 에이전트들만 회의실 2로 이동
-  const mr = MR[1]; // Meeting Room 2 사용
-  agentIds.forEach((id, i) => {
-    const agent = agents.find(a => a.id === id);
-    if (!agent || i >= mr.seats.length) return;
-    agent.seatIdx = i;
-    agent.mrIdx = 1;
-    agent.state = 'toMeeting';
-    agent.setTarget(mr.seats[i].x, mr.seats[i].y);
-    agent.statusText = '협업 이동 중';
-    setAgentLiveStatus(agent.id, 'walking');
-  });
-}
-
-function endCanvasCollab(agentIds) {
-  agentIds.forEach(id => {
-    const agent = agents.find(a => a.id === id);
-    if (!agent) return;
-    if (agent.state === 'inMeeting' || agent.state === 'toMeeting') {
-      agent.state = 'returning';
-      agent.setTarget(agent.hx, agent.hy);
-      agent.statusText = '자리로 복귀 중';
-      agent.seatIdx = -1;
-      agent.mrIdx = -1;
-      setAgentLiveStatus(agent.id, 'walking');
-    }
-  });
-}
-
 function handleWSMessage(msg) {
   switch (msg.type) {
     case 'stream_start': {
@@ -1955,19 +1938,55 @@ function handleWSMessage(msg) {
       endCanvasMeeting();
       break;
     }
-    case 'collab_start': {
-      isStreaming = true;
-      document.getElementById('chat-send').disabled = true;
-      (msg.agentIds || []).forEach(id => setAgentLiveStatus(id, 'meeting'));
-      triggerCanvasCollab(msg.agentIds || []);
+    case 'consultation_start': {
+      // 상담 시작: 채팅에 인라인 표시
+      const callingColor = AGENT_CFG.find(a => a.id === msg.callingAgentId)?.color || '#58a6ff';
+      const targetColor = AGENT_CFG.find(a => a.id === msg.targetAgentId)?.color || '#58a6ff';
+      const consultHtml = `<div class="consultation-block consultation-pending" data-consult-target="${msg.targetAgentId}">` +
+        `<div class="consult-header">` +
+        `<span class="consult-icon">🔄</span> ` +
+        `<span style="color:${callingColor};font-weight:700">${escapeHtml(msg.callingName)}</span>` +
+        ` → <span style="color:${targetColor};font-weight:700">${escapeHtml(msg.targetName)}</span>에게 상담 중...` +
+        `</div>` +
+        `<div class="consult-question">"${escapeHtml(msg.question.slice(0, 150))}"</div>` +
+        `</div>`;
+      // 현재 활성 대화에 상담 블록 추가
+      const chatAgentId = msg.callingAgentId;
+      if (!chatHistories[chatAgentId]) chatHistories[chatAgentId] = [];
+      chatHistories[chatAgentId].push({ role: 'consultation', content: consultHtml, targetAgentId: msg.targetAgentId });
+      if (currentChatAgent === chatAgentId || currentChatAgent === -1) renderMessages();
+      setAgentLiveStatus(msg.callingAgentId, 'walking');
+      setAgentLiveStatus(msg.targetAgentId, 'walking');
+      // 캔버스: 두 에이전트가 Meeting Room 2로 이동
+      triggerCanvasConsultation(msg.callingAgentId, msg.targetAgentId);
+      // 회의록 기록
+      addMinutesEntry({ type: 'tool_use', agentId: msg.callingAgentId, agentName: msg.callingName, content: `[상담 요청 → ${msg.targetName}] ${msg.question.slice(0, 100)}` });
       break;
     }
-    case 'collab_end': {
-      isStreaming = false;
-      document.getElementById('chat-send').disabled = false;
-      document.getElementById('chat-input').focus();
-      (msg.agentIds || []).forEach(id => setAgentLiveStatus(id, 'idle'));
-      endCanvasCollab(msg.agentIds || []);
+    case 'consultation_end': {
+      // 상담 완료: pending 블록을 완료 상태로 업데이트
+      const chatAgentId2 = msg.callingAgentId;
+      const history = chatHistories[chatAgentId2] || [];
+      const pendingIdx = history.findLastIndex(m => m.role === 'consultation' && m.targetAgentId === msg.targetAgentId);
+      if (pendingIdx >= 0) {
+        const callingColor2 = AGENT_CFG.find(a => a.id === msg.callingAgentId)?.color || '#58a6ff';
+        const targetColor2 = AGENT_CFG.find(a => a.id === msg.targetAgentId)?.color || '#58a6ff';
+        const responsePreview = msg.response.length > 300 ? msg.response.slice(0, 300) + '...' : msg.response;
+        history[pendingIdx].content = `<div class="consultation-block consultation-done" data-consult-target="${msg.targetAgentId}">` +
+          `<div class="consult-header" onclick="this.parentElement.classList.toggle('expanded')">` +
+          `<span class="consult-icon">✅</span> ` +
+          `<span style="color:${callingColor2};font-weight:700">${escapeHtml(msg.callingName)}</span>` +
+          ` ← <span style="color:${targetColor2};font-weight:700">${escapeHtml(msg.targetName)}</span> 상담 완료` +
+          `<span class="consult-toggle">▼</span>` +
+          `</div>` +
+          `<div class="consult-response">${escapeHtml(responsePreview).replace(/\n/g, '<br>')}</div>` +
+          `</div>`;
+      }
+      if (currentChatAgent === chatAgentId2 || currentChatAgent === -1) renderMessages();
+      setAgentLiveStatus(msg.targetAgentId, 'idle');
+      // 캔버스: 두 에이전트가 자리로 복귀
+      endCanvasConsultation(msg.callingAgentId, msg.targetAgentId);
+      addMinutesEntry({ type: 'chat', agentId: msg.targetAgentId, agentName: msg.targetName, content: `[상담 답변 → ${msg.callingName}] ${msg.response.slice(0, 100)}` });
       break;
     }
     case 'tool_activity': {
@@ -1996,28 +2015,6 @@ function handleWSMessage(msg) {
       if (req) { req.status = msg.decision; req.resolvedAt = msg.timestamp; }
       updateApprovalBadge();
       if (panelMode === 'approval') renderApprovalPanel();
-      break;
-    }
-    case 'dm_start': {
-      isStreaming = true;
-      document.getElementById('chat-send').disabled = true;
-      setAgentLiveStatus(msg.fromAgentId, 'responding');
-      setAgentLiveStatus(msg.toAgentId, 'responding');
-      break;
-    }
-    case 'dm_end': {
-      isStreaming = false;
-      document.getElementById('chat-send').disabled = false;
-      document.getElementById('chat-input').focus();
-      setAgentLiveStatus(msg.fromAgentId, 'idle');
-      setAgentLiveStatus(msg.toAgentId, 'idle');
-      // 회의록에 기록
-      addMinutesEntry({
-        type: 'chat',
-        agentId: msg.fromAgentId,
-        agentName: `${msg.fromName} ↔ ${msg.toName}`,
-        content: `[DM 완료] ${msg.fromName}이 ${msg.toName}에게 질문하고 답변을 받았습니다.`,
-      });
       break;
     }
     case 'chart_data': {
@@ -2131,8 +2128,7 @@ function handleWSMessage(msg) {
     if (msg.type === 'stream_end') setAgentLiveStatus(msg.agentId, 'idle');
     if (msg.type === 'meeting_start') { [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'meeting')); triggerCanvasMeeting(); }
     if (msg.type === 'meeting_end') { [0,1,2,3,4].forEach(id => setAgentLiveStatus(id, 'idle')); endCanvasMeeting(); }
-    if (msg.type === 'collab_start') { (msg.agentIds||[]).forEach(id => setAgentLiveStatus(id, 'meeting')); triggerCanvasCollab(msg.agentIds||[]); }
-    if (msg.type === 'collab_end') { (msg.agentIds||[]).forEach(id => setAgentLiveStatus(id, 'idle')); endCanvasCollab(msg.agentIds||[]); }
+    // consultation은 switch-case에서 처리됨
   }
 }
 
@@ -2327,7 +2323,7 @@ let scheduleFormOpen = false;
 
 const AGENT_NAME_MAP = { 0: '한준혁', 1: '이서연', 2: '김하늘', 3: '박도현', 4: '최재원' };
 const AGENT_COLOR_MAP = { 0: '#4A85D8', 1: '#3AB87A', 2: '#D4A017', 3: '#E05040', 4: '#9055D8' };
-const SCHED_TYPE_LABELS = { chat: '1:1 분석', meeting: '전체 회의', collaboration: '협업 분석' };
+const SCHED_TYPE_LABELS = { chat: '1:1 분석', meeting: '전체 회의' };
 
 function requestScheduleList() {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -2530,57 +2526,6 @@ function submitNewSchedule() {
   renderSchedulePanel();
 }
 
-// ── 에이전트 간 DM ──────────────────────────────────────────────────────────
-
-let dmFromAgent = -1;
-let dmToAgent = -1;
-
-function buildDMAgentButtons() {
-  const container = document.getElementById('collab-agents');
-  const flowEl = document.getElementById('collab-flow');
-
-  // DM에서는 "보내는 에이전트" → "받는 에이전트" 선택
-  let html = '<span class="collab-label" style="width:100%;margin-bottom:2px">보내는 에이전트:</span>';
-  html += AGENT_CFG.map(a => {
-    const sel = dmFromAgent === a.id;
-    return `<button class="collab-agent-btn ${sel ? 'selected' : ''}" onclick="setDMFrom(${a.id})">
-      <span class="collab-dot" style="background:${a.color}"></span>${a.name}
-    </button>`;
-  }).join('');
-
-  html += '<span class="collab-label" style="width:100%;margin-top:4px;margin-bottom:2px">받는 에이전트:</span>';
-  html += AGENT_CFG.filter(a => a.id !== dmFromAgent).map(a => {
-    const sel = dmToAgent === a.id;
-    return `<button class="collab-agent-btn ${sel ? 'selected' : ''}" onclick="setDMTo(${a.id})">
-      <span class="collab-dot" style="background:${a.color}"></span>${a.name}
-    </button>`;
-  }).join('');
-
-  container.innerHTML = html;
-
-  // 플로우 표시
-  if (dmFromAgent >= 0 && dmToAgent >= 0) {
-    const from = AGENT_CFG.find(a => a.id === dmFromAgent);
-    const to = AGENT_CFG.find(a => a.id === dmToAgent);
-    flowEl.innerHTML = `<span style="color:${from.color};font-weight:600">${from.name}</span>
-      <span class="collab-flow-arrow">💌→</span>
-      <span style="color:${to.color};font-weight:600">${to.name}</span>`;
-  } else {
-    flowEl.innerHTML = '<span style="color:#484f58;font-size:10px">보내는 에이전트와 받는 에이전트를 선택하세요</span>';
-  }
-}
-
-function setDMFrom(id) {
-  dmFromAgent = id;
-  if (dmToAgent === id) dmToAgent = -1; // 같은 에이전트 방지
-  buildDMAgentButtons();
-}
-
-function setDMTo(id) {
-  dmToAgent = id;
-  buildDMAgentButtons();
-}
-
 // ── 리포트 내보내기 ─────────────────────────────────────────────────────────
 
 function downloadFile(filename, content, mimeType) {
@@ -2776,30 +2721,7 @@ function sendMessage() {
   isStreaming = true;
   document.getElementById('chat-send').disabled = true;
 
-  if (currentChatAgent === -3) {
-    // DM 모드
-    if (dmFromAgent < 0 || dmToAgent < 0) {
-      alert('보내는 에이전트와 받는 에이전트를 선택하세요.');
-      isStreaming = false;
-      document.getElementById('chat-send').disabled = false;
-      return;
-    }
-    const fromName = AGENT_CFG.find(a => a.id === dmFromAgent)?.name;
-    const toName = AGENT_CFG.find(a => a.id === dmToAgent)?.name;
-    ws.send(JSON.stringify({ type: 'agent_dm', fromAgentId: dmFromAgent, toAgentId: dmToAgent, question: text }));
-    addMinutesEntry({ type: 'instruction', agentId: dmFromAgent, agentName: fromName, content: `[DM: ${fromName} → ${toName}] ${text}` });
-  } else if (currentChatAgent === -2) {
-    // 협업 모드
-    if (collabSelectedAgents.length < 2) {
-      alert('협업할 에이전트를 2명 이상 선택하세요.');
-      isStreaming = false;
-      document.getElementById('chat-send').disabled = false;
-      return;
-    }
-    const names = collabSelectedAgents.map(id => AGENT_CFG.find(a => a.id === id)?.name).join(' → ');
-    ws.send(JSON.stringify({ type: 'collaboration', agents: [...collabSelectedAgents], instruction: text }));
-    addMinutesEntry({ type: 'instruction', agentId: -2, agentName: '협업', content: `[협업 지시: ${names}] ${text}` });
-  } else if (currentChatAgent === -1) {
+  if (currentChatAgent === -1) {
     ws.send(JSON.stringify({ type: 'meeting', content: text }));
     addMinutesEntry({ type: 'instruction', agentId: -1, agentName: '전체 회의', content: `[사용자 → 전체] ${text}` });
   } else {

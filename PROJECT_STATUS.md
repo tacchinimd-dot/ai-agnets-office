@@ -1,6 +1,6 @@
 # AI Agents Office — Project Status
 
-> 최종 업데이트: 2026-03-28
+> 최종 업데이트: 2026-03-30
 
 ## 프로젝트 개요
 
@@ -79,11 +79,11 @@ C:\Users\AD0903\ai_office_project\
 
 | 에이전트 | tool_use | 데이터 소스 | 도구 수 | 핵심 질문 |
 |---------|----------|-----------|---------|----------|
-| 한준혁 (CEO) | - | 없음. 회의에서 타 에이전트 발언을 종합하여 의사결정 | 0 | "전략 방향은?" |
-| 이서연 (Market) | ✅ | 경쟁사 크롤링 5개 브랜드 839개 상품 | 3 | "경쟁사는 뭘 하는가?" |
-| 김하늘 (Trend) | ✅ | 네이버 키워드 + Google Trends + 무신사 + TikTok | 11 | "사람들은 뭘 원하는가?" |
-| 박도현 (Product) | ✅ | 상품 마스터 + 카테고리 판매 + 원가 + 상품 랭킹 (Snowflake) | 3 | "뭘 만들어야 하는가?" |
-| 최재원 (Data) | ✅ | 채널별 판매 실적 DB_SCS_W (Snowflake) | 2 | "전략이 맞는가?" |
+| 한준혁 (CEO) | ✅ | consult_agent로 타 에이전트에게 데이터 조회 위임 | 1 | "전략 방향은?" |
+| 이서연 (Market) | ✅ | 경쟁사 크롤링 5개 브랜드 839개 상품 + consult_agent | 4 | "경쟁사는 뭘 하는가?" |
+| 김하늘 (Trend) | ✅ | 네이버 키워드(**KG API**) + Google Trends + 무신사 + TikTok + consult_agent | 12 | "사람들은 뭘 원하는가?" |
+| 박도현 (Product) | ✅ | 상품마스터+원가+카테고리+랭킹+재고+유사상품 — **전부 KG API** + consult_agent | 7 | "뭘 만들어야 하는가?" |
+| 최재원 (Data) | ✅ | 채널별 판매 실적 — **지식그래프 API** (Snowflake 직접 접속 제거) + consult_agent | 4 | "전략이 맞는가?" |
 
 #### 이서연 (Market Agent) — 경쟁사 분석 도구 3개
 
@@ -117,16 +117,20 @@ C:\Users\AD0903\ai_office_project\
 
 > 주요 테이블: DB_PRDT(상품 마스터), CTGR_SALES_W(카테고리 판매), DB_COST_MST(원가), DM_FNF_PRDT_RNK_W(상품 랭킹)
 
-#### 최재원 (Data Analyst) — 판매 실적 도구 2개
+#### 최재원 (Data Analyst) — 판매 실적 도구 3개 (지식그래프 API)
 
 | 도구 | 기능 |
 |------|------|
-| query_snowflake | DB_SCS_W 자유 쿼리 (채널별 판매/입고/재고) |
-| get_weekly_summary | 최근 N주 채널별 판매 요약 |
+| query_channel_sales | 채널별 판매 종합분석 (일/주/월/년 + 전년비) — KG API |
+| get_weekly_summary | 최근 N주 채널별 판매 요약 — KG API |
+| get_date_dataset | 날짜 참조 데이터 (전년 동일/동요일 기준) — KG API |
 
-> 박도현과 최재원의 차이: 같은 Snowflake이지만 다른 테이블, 다른 관점
-> - 최재원: "CNS 채널 매출 15% 하락" (실적 검증)
-> - 박도현: "레깅스 SKU 늘리고 마크업 3.2배 유지" (상품 기획)
+> **2026-03-30 변경:** Snowflake 직접 접속(query_snowflake) → 지식그래프 API(query_channel_sales)로 전환.
+> Snowflake 크리덴셜 불필요. `~/.claude/.credentials.json`의 MCP OAuth 토큰 사용.
+>
+> 박도현과 최재원의 차이: 박도현은 Snowflake 직접 접속, 최재원은 KG API 경유
+> - 최재원: "CNS 채널 매출 15% 하락" (실적 검증, KG API)
+> - 박도현: "레깅스 SKU 늘리고 마크업 3.2배 유지" (상품 기획, Snowflake)
 
 ## 사무실 레이아웃
 
@@ -228,13 +232,8 @@ C:\Users\AD0903\ai_office_project\
 - [x] 성공/오류 시각적 구분 (초록/빨강 좌측 보더)
 - [x] index.html 동기화
 
-### Phase 4.0 — 에이전트 간 자동 협업 (완료)
-- [x] 🤝 협업 탭 추가 (채팅 탭 목록)
-- [x] 에이전트 선택 UI: 순서대로 클릭하여 협업 체인 구성
-- [x] 플로우 시각화: 이서연 → 박도현 → 최재원 형태
-- [x] 서버 handleCollaboration: 순차 처리 + 컨텍스트 전달 + tool_use 지원
-- [x] 캔버스: 협업 에이전트들이 Meeting Room 2로 이동
-- [x] 회의록 자동 기록 + STATUS 자동 업데이트
+### Phase 4.0 — 에이전트 간 자동 협업 (Phase 6.0으로 대체)
+> 🤝 협업 탭 / 💌 DM 탭을 제거하고, Phase 6.0 `consult_agent` 자율 상담으로 대체됨.
 - [x] 에이전트별 STATUS.md/SKILLS.md/logs/ 폴더 구조 생성
 
 ### Phase 3.4 — 회의록 + 결재 대기 시스템 (완료)
@@ -269,7 +268,7 @@ C:\Users\AD0903\ai_office_project\
 ### Phase 5.0 — 에이전트 자율 분석 스케줄링 (완료)
 - [x] `server/scheduler.js` — 스케줄 CRUD, 타이머 관리, 리포트 저장 모듈
 - [x] 기본 템플릿 5종: 일일 트렌드 브리핑(김하늘), 주간 판매 리포트(최재원), 경쟁사 동향 체크(이서연), 상품 기획 인사이트(박도현), 전략 종합 회의(전체)
-- [x] 자동 분석 실행 엔진: chat/meeting/collaboration 3가지 유형 지원
+- [x] 자동 분석 실행 엔진: chat/meeting 2가지 유형 지원 (collaboration은 Phase 6.0에서 제거)
 - [x] tool_use 루프 지원 (자동 분석 중에도 데이터 조회 가능)
 - [x] WebSocket 브로드캐스트: 자동 분석 스트리밍을 모든 클라이언트에 실시간 전송
 - [x] 캔버스 연동: 자동 분석 시 에이전트 상태/위치 변경 (responding/querying/meeting)
@@ -329,20 +328,35 @@ C:\Users\AD0903\ai_office_project\
 - [x] Blob 기반 클라이언트 사이드 다운로드 (서버 불필요)
 - [x] index.html 동기화
 
-### Phase 5.4 — 에이전트 간 DM (직접 대화) (완료)
-- [x] 💌 DM 탭 추가 (채팅 탭 목록)
-- [x] 보내는 에이전트 / 받는 에이전트 선택 UI
-- [x] 2단계 DM 흐름: 보내는 에이전트가 질문 생성 → 받는 에이전트가 데이터 기반 답변
-- [x] 서버 `handleAgentDM`: tool_use 루프 지원 (최대 4회)
-- [x] DM 스트리밍 (stream_start/delta/end with source: 'dm')
-- [x] 에이전트 상태 업데이트 (responding ↔ idle)
-- [x] 회의록 자동 기록 (DM 시작 + DM 완료)
-- [x] 에이전트별 로그 자동 저장
+### Phase 5.4 — 에이전트 간 DM (Phase 6.0으로 대체)
+> 💌 DM 탭을 제거하고, Phase 6.0 `consult_agent` 자율 상담으로 대체됨.
+
+### Phase 6.0 — 에이전트 자율 상담 consult_agent (완료)
+- [x] `consult_agent` Claude tool_use 도구 추가 — 모든 에이전트(CEO 포함)가 사용 가능
+- [x] `buildConsultTool(agentId)`: 호출 에이전트 자신을 제외한 4명에게 상담 요청 가능
+- [x] `executeConsultation()`: 임시 대화 컨텍스트에서 상담 실행 (기존 대화 오염 방지)
+- [x] 상담받는 에이전트의 데이터 도구 사용 가능 (최대 3회 tool_use 루프)
+- [x] 재귀 방지: 상담받는 에이전트에게는 consult_agent 미제공 (깊이 1 제한)
+- [x] `getToolsForAgent(agentId, includeConsult)`: includeConsult=false로 상담 시 재귀 차단
+- [x] CEO 한준혁에게도 consult_agent 부여 — 데이터 조회를 전문 에이전트에게 위임 가능
+- [x] 5명 전원 system prompt에 "다른 에이전트 상담" 가이드 추가
+- [x] 🤝 협업 탭, 💌 DM 탭, collab-bar UI 전면 제거
+- [x] `handleCollaboration`, `handleAgentDM`, `executeScheduledCollab` 서버 함수 제거
+- [x] 캔버스: 상담 시 두 에이전트가 Meeting Room 2로 이동하여 만남
+- [x] 캔버스: 상담 완료 시 자리로 복귀 (다중 상담 동시 진행 안전장치)
+- [x] 캔버스: 자리 비움 뱃지 "상담 중"(파랑) 추가 — 기존 "회의 중"(보라)과 구분
+- [x] 캔버스: inMeeting 상태 점선 연결선 자동 적용
+- [x] 채팅 패널: 접을 수 있는 상담 블록 시각화 (진행 중=노랑, 완료=초록, 클릭하면 답변 펼침)
+- [x] 회의록: 상담 요청/답변 자동 기록
+- [x] tool_activity: 상담 중 데이터 조회도 source:'consultation'으로 표시
+- [x] TOOL_LABELS에 consult_agent: '🤝 에이전트 상담' 추가
 - [x] index.html 동기화
+
+> **설계 철학**: 에이전트 간 소통은 사용자가 수동으로 트리거하는 것이 아니라, 1:1 대화/회의 중 에이전트가 자율적으로 필요 시 상담을 발동한다. 사용자는 채팅 패널의 상담 블록 + 캔버스의 이동 + 회의록을 통해 과정을 투명하게 확인 가능.
 
 ## 미구현 / 추후 작업
 
-- [ ] Snowflake 비밀번호 설정 → 최재원/김하늘/박도현 Snowflake 도구 활성화 (관리자에게 로컬 비밀번호 또는 서비스 계정 요청 필요)
+- [x] 전원 지식그래프 API 전환 완료 — 최재원(채널판매), 박도현(상품/원가/카테고리/랭킹/재고/유사상품), 김하늘(네이버 키워드). Snowflake 크리덴셜 불필요
 - [x] Render.com 배포 완료 → https://ai-agnets-office.onrender.com/
 - [ ] Snowflake에 전체 브랜드 데이터 업로드 (권한 확보 후)
 - [x] 전체 회의 모드에서 에이전트 tool_use 지원
@@ -354,7 +368,9 @@ C:\Users\AD0903\ai_office_project\
 
 | 날짜 | 내용 |
 |------|------|
-| 2026-03-28 | **Phase 5.4 완료** — 에이전트 간 DM (💌 직접 대화, 2단계 질문-답변, tool_use 지원) |
+| 2026-03-30 | **전원 KG API 전환** — 최재원(채널 판매), 박도현(상품/원가/카테고리/랭킹/재고/유사상품), 김하늘(네이버 키워드) 모두 지식그래프 API로 전환. Snowflake 직접 접속 제거 |
+| 2026-03-30 | **Phase 6.0 완료** — 에이전트 자율 상담 `consult_agent` (협업/DM 탭 제거 → 자율 상담으로 대체, Meeting Room 2 이동, 상담 블록 시각화) |
+| 2026-03-28 | **Phase 5.4 완료** — 에이전트 간 DM (💌 직접 대화, 2단계 질문-답변, tool_use 지원) → Phase 6.0으로 대체 |
 | 2026-03-28 | **Phase 5.3 완료** — 리포트 내보내기 (대화/회의록 MD+HTML 다운로드) |
 | 2026-03-28 | **Phase 5.2 완료** — 에이전트 간 자동 트리거 (5종 조건부 연쇄 분석, 쿨다운, 토스트 알림) |
 | 2026-03-28 | **Phase 5.1 완료** — 대시보드/차트 시각화 패널 (Chart.js, 19개 도구별 자동 차트, 📊 차트 탭) |
