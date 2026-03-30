@@ -140,14 +140,17 @@ function buildConsultTool(callingAgentId) {
 
 // ── 에이전트 상담 실행 (consult_agent 핸들러) ────────────────────────────────
 
-async function executeConsultation(sendFn, callingAgentId, targetAgentId, question, questionContext) {
+const MAX_CONSULT_DEPTH = 3; // 에이전트 간 상담 최대 깊이 (A→B→C→D까지 허용)
+
+async function executeConsultation(sendFn, callingAgentId, targetAgentId, question, questionContext, depth = 1) {
   const callingAgent = getAgent(callingAgentId);
   const targetAgent = getAgent(targetAgentId);
 
   if (!targetAgent) return JSON.stringify({ error: `에이전트 ID ${targetAgentId}를 찾을 수 없습니다` });
   if (targetAgentId === callingAgentId) return JSON.stringify({ error: '자기 자신에게는 상담할 수 없습니다' });
+  if (depth > MAX_CONSULT_DEPTH) return JSON.stringify({ error: `상담 깊이 제한 (최대 ${MAX_CONSULT_DEPTH}단계). 직접 답변하세요.` });
 
-  console.log(`[Consult] ${callingAgent?.name} → ${targetAgent.name}: ${question.slice(0, 80)}`);
+  console.log(`[Consult depth=${depth}] ${callingAgent?.name} → ${targetAgent.name}: ${question.slice(0, 80)}`);
 
   // 상담 시작 알림
   sendFn({
@@ -157,20 +160,22 @@ async function executeConsultation(sendFn, callingAgentId, targetAgentId, questi
     callingName: callingAgent?.name || '',
     targetName: targetAgent.name,
     question,
+    depth,
   });
 
   // 임시 대화 컨텍스트 (기존 대화 오염 방지)
   const tempMessages = [{
     role: 'user',
-    content: `[에이전트 상담 요청] ${callingAgent?.name}(${callingAgent?.role})이 당신에게 질문합니다:\n\n"${question}"${questionContext ? `\n\n배경: ${questionContext}` : ''}\n\n도구를 사용해 데이터를 조회하고, 핵심 수치와 함께 간결하게 답변해주세요 (3-5문장).`,
+    content: `[에이전트 상담 요청] ${callingAgent?.name}(${callingAgent?.role})이 당신에게 질문합니다:\n\n"${question}"${questionContext ? `\n\n배경: ${questionContext}` : ''}\n\n도구를 사용해 데이터를 조회하고, 핵심 수치와 함께 간결하게 답변해주세요 (3-5문장). 필요하면 다른 에이전트에게 추가 상담(consult_agent)을 요청할 수 있습니다.`,
   }];
 
-  // 상담받는 에이전트의 데이터 도구만 (consult_agent 제외 = 재귀 방지)
-  const tools = getToolsForAgent(targetAgentId, false);
+  // 상담받는 에이전트에게 consult_agent 포함 (자유로운 연쇄 상담 허용)
+  const includeConsult = depth < MAX_CONSULT_DEPTH;
+  const tools = getToolsForAgent(targetAgentId, includeConsult);
 
   let fullResponse = '';
   let loopCount = 0;
-  const maxLoops = 3;
+  const maxLoops = 5;
 
   try {
     while (loopCount < maxLoops) {
@@ -206,7 +211,7 @@ async function executeConsultation(sendFn, callingAgentId, targetAgentId, questi
       const toolResults = [];
       for (const toolBlock of toolUseBlocks) {
         try {
-          const result = await executeTool(toolBlock.name, toolBlock.input);
+          const result = await executeTool(toolBlock.name, toolBlock.input, { sendFn, callingAgentId: targetAgentId, consultDepth: depth });
           toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: result });
           console.log(`[Consult Tool] ${targetAgent.name} → ${toolBlock.name} 성공`);
           sendFn({
@@ -258,11 +263,12 @@ async function executeConsultation(sendFn, callingAgentId, targetAgentId, questi
 // ── Tool 실행 핸들러 ─────────────────────────────────────────────────────────
 
 async function executeTool(toolName, toolInput, context = {}) {
-  // consult_agent 처리
+  // consult_agent 처리 (연쇄 상담 시 depth 증가)
   if (toolName === 'consult_agent') {
-    const { sendFn, callingAgentId } = context;
+    const { sendFn, callingAgentId, consultDepth } = context;
     if (!sendFn) return JSON.stringify({ error: 'consult_agent는 이 컨텍스트에서 사용할 수 없습니다' });
-    return await executeConsultation(sendFn, callingAgentId, toolInput.target_agent_id, toolInput.question, toolInput.context);
+    const nextDepth = (consultDepth || 0) + 1;
+    return await executeConsultation(sendFn, callingAgentId, toolInput.target_agent_id, toolInput.question, toolInput.context, nextDepth);
   }
   // 최재원(Data Analyst) — KG API 도구
   if (toolName === 'query_channel_sales') {
