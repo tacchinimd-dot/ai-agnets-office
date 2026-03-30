@@ -29,3 +29,6 @@ npm-debug.log*
 # Temp
 *.tmp
 *.bak
+
+# Conversation persistence
+server/conversations/

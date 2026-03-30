@@ -81,6 +81,8 @@
   .chat-msg.agent { align-self: flex-start; background: #1c2333; color: #c9d1d9; border-bottom-left-radius: 4px; border-left: 3px solid #555; }
   .chat-msg .msg-name { font-size: 11px; font-weight: 700; margin-bottom: 4px; }
   .chat-msg.typing { color: #8b949e; font-style: italic; }
+  .chat-msg .chat-img { max-width: 100%; max-height: 200px; border-radius: 8px; margin: 4px 0; display: block; }
+  .chat-msg a:has(.chat-img) { display: inline-block; }
 
   .chat-welcome { color: #8b949e; text-align: center; padding: 40px 20px; font-size: 13px; line-height: 1.8; }
   .chat-welcome .welcome-icon { font-size: 32px; margin-bottom: 12px; }
@@ -1599,11 +1601,31 @@ function renderMessages() {
 }
 
 function formatMessage(text) {
-  return text
+  // Step 1: Extract markdown images and bare image URLs BEFORE escaping, replace with placeholders
+  var imgPlaceholders = [];
+  // Markdown image syntax ![alt](url)
+  text = text.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s)]*)?)\)/gi, function(m, alt, url) {
+    var idx = imgPlaceholders.length;
+    imgPlaceholders.push('<a href="' + url + '" target="_blank" rel="noopener"><img src="' + url + '" alt="' + alt + '" class="chat-img" onerror="this.style.display=\'none\'" /></a>');
+    return '%%IMG_PLACEHOLDER_' + idx + '%%';
+  });
+  // Bare image URLs (common extensions)
+  text = text.replace(/(https?:\/\/[^\s<>"']+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s<>"']*)?)/gi, function(match) {
+    var idx = imgPlaceholders.length;
+    imgPlaceholders.push('<a href="' + match + '" target="_blank" rel="noopener"><img src="' + match + '" class="chat-img" onerror="this.style.display=\'none\'" /></a>');
+    return '%%IMG_PLACEHOLDER_' + idx + '%%';
+  });
+  // Step 2: Existing transformations (HTML escape, markdown bold, inline code)
+  text = text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/`(.+?)`/g, '<code style="background:#2a2f3a;padding:1px 4px;border-radius:3px;font-size:12px">$1</code>');
+  // Step 3: Restore image placeholders
+  for (var i = 0; i < imgPlaceholders.length; i++) {
+    text = text.replace('%%IMG_PLACEHOLDER_' + i + '%%', imgPlaceholders[i]);
+  }
+  return text;
 }
 
 function appendStreamDelta(agentId, delta) {
