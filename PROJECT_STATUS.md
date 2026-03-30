@@ -67,23 +67,27 @@ C:\Users\AD0903\ai_office_project\
 
 ## 에이전트 현황
 
-| ID | 이름 | 역할 | 색상 | 성별 |
-|----|------|------|------|------|
-| 0 | 한준혁 | CEO / 전략 총괄 | #4A85D8 | 남 |
-| 1 | 이서연 | Market Agent / 시장·경쟁 분석가 | #3AB87A | 여 |
-| 2 | 김하늘 | Trend Agent / 고객 트렌드 분석가 | #D4A017 | 여 |
-| 3 | 박도현 | Product Planning / 상품 기획 MD | #E05040 | 남 |
-| 4 | 최재원 | Data Analyst / 데이터 분석가 | #9055D8 | 남 |
+| ID | 이름 | 역할 | 색상 | 성별 | 위치 |
+|----|------|------|------|------|------|
+| 0 | 한준혁 | CEO / 전략 총괄 | #4A85D8 | 남 | CEO Room |
+| 1 | 이서연 | Market Agent / 시장·경쟁 분석가 | #3AB87A | 여 | (500, 370) |
+| 2 | 김하늘 | Trend Agent / 고객 트렌드 분석가 | #D4A017 | 여 | (750, 370) |
+| 3 | 박도현 | Product Planning / 상품 기획 MD | #E05040 | 남 | (1000, 370) |
+| 4 | 최재원 | Data Analyst / 데이터 분석가 | #9055D8 | 남 | (500, 620) |
+| 5 | 윤지수 | Customer Analyst / 고객 분석가 | #FF6B9D | 여 | (750, 620) |
+| 6 | 정민호 | Marketing Analyst / 마케팅 성과 분석가 | #FF8C42 | 남 | (1000, 620) |
 
-### 에이전트별 데이터 접근 현황 (전원 연결 완료)
+### 에이전트별 데이터 접근 현황 (7명 전원 연결 완료)
 
 | 에이전트 | tool_use | 데이터 소스 | 도구 수 | 핵심 질문 |
 |---------|----------|-----------|---------|----------|
 | 한준혁 (CEO) | ✅ | consult_agent로 타 에이전트에게 데이터 조회 위임 | 1 | "전략 방향은?" |
-| 이서연 (Market) | ✅ | 경쟁사 크롤링 5개 브랜드 839개 상품 + consult_agent | 4 | "경쟁사는 뭘 하는가?" |
+| 이서연 (Market) | ✅ | 경쟁사 크롤링 5개 브랜드 839개 상품 + **run_competitor_crawler** + consult_agent | 5 | "경쟁사는 뭘 하는가?" |
 | 김하늘 (Trend) | ✅ | 네이버 키워드(**KG API**) + Google Trends + 무신사 + TikTok + consult_agent | 12 | "사람들은 뭘 원하는가?" |
 | 박도현 (Product) | ✅ | 상품마스터+원가+카테고리+랭킹+재고+유사상품 — **전부 KG API** + consult_agent | 7 | "뭘 만들어야 하는가?" |
-| 최재원 (Data) | ✅ | 채널별 판매 실적 — **지식그래프 API** (Snowflake 직접 접속 제거) + consult_agent | 4 | "전략이 맞는가?" |
+| 최재원 (Data) | ✅ | 채널별 판매 실적 — **KG API** + consult_agent | 4 | "전략이 맞는가?" |
+| 윤지수 (Customer) | ✅ | 고객 성별/연령대×상품×채널 판매 — **KG API** + consult_agent | 2 | "고객은 누구인가?" |
+| 정민호 (Marketing) | ✅ | 인플루언서 캠페인/컨텐츠 성과 — **KG API** (SYS_BRD_CD='8') + consult_agent | 3 | "마케팅이 효과있는가?" |
 
 #### 이서연 (Market Agent) — 경쟁사 분석 도구 3개
 
@@ -128,14 +132,33 @@ C:\Users\AD0903\ai_office_project\
 > **2026-03-30 변경:** Snowflake 직접 접속(query_snowflake) → 지식그래프 API(query_channel_sales)로 전환.
 > Snowflake 크리덴셜 불필요. `~/.claude/.credentials.json`의 MCP OAuth 토큰 사용.
 >
-> 박도현과 최재원의 차이: 박도현은 Snowflake 직접 접속, 최재원은 KG API 경유
-> - 최재원: "CNS 채널 매출 15% 하락" (실적 검증, KG API)
-> - 박도현: "레깅스 SKU 늘리고 마크업 3.2배 유지" (상품 기획, Snowflake)
+> 박도현과 최재원의 차이: 전부 KG API이지만 관점이 다름
+> - 최재원: "CNS 채널 매출 15% 하락" (채널 실적 검증)
+> - 박도현: "레깅스 SKU 늘리고 마크업 3.2배 유지" (상품 기획)
+
+#### 윤지수 (Customer Analyst) — 고객 분석 도구 1개 (KG API)
+
+| 도구 | 기능 |
+|------|------|
+| query_customer_sales | 고객 성별/연령대 × 상품 카테고리 × 채널별 판매 분석 (시계열 지원) |
+
+> 필터: BRD_CD='ST' (기존 에이전트와 동일)
+> 셀렉터: CUST_SEX(성별), CUST_AGE_GRP_AGE_GRP(연령대), ITEM_GROUP(카테고리), CHANNEL_TYPE(채널)
+
+#### 정민호 (Marketing Analyst) — 마케팅 성과 도구 2개 (KG API)
+
+| 도구 | 기능 |
+|------|------|
+| query_campaign_performance | 캠페인-상품별 성과 (캠페인수/컨텐츠수/인플루언서수/좋아요/댓글/조회수/비용) |
+| query_content_performance | 컨텐츠별 상세 성과 (인플루언서 정보/채널/비용/좋아요/댓글/조회수) |
+
+> **주의: ST 브랜드 필터는 SYS_BRD_CD='8' (BRD_CD='ST'가 아님!)**
+> SYS_BRD_CD 매핑: 1=MLB, 2=MLB Kids, 3=Discovery, 4=Discovery Kids, 7=Duvetica, **8=Sergio Tacchini**
 
 ## 사무실 레이아웃
 
 - **CEO Room**: 좌측 상단 (20,60) 270x360 — 책장, 소파, 화분
-- **워크스테이션**: 중앙 2x2 그리드 (600/900 x 370/620)
+- **워크스테이션**: 중앙 **3x2** 그리드 (500/750/1000 x 370/620)
 - **Meeting Room 1**: 우측 상단 (1290,60) 285x400
 - **Meeting Room 2**: 우측 하단 (1290,460) 285x400
 - **기타**: 워터쿨러(1255,490), 화분 4곳, 천장 조명 4개
@@ -356,7 +379,12 @@ C:\Users\AD0903\ai_office_project\
 
 ## 미구현 / 추후 작업
 
-- [x] 전원 지식그래프 API 전환 완료 — 최재원(채널판매), 박도현(상품/원가/카테고리/랭킹/재고/유사상품), 김하늘(네이버 키워드). Snowflake 크리덴셜 불필요
+- [x] 전원 지식그래프 API 전환 완료 (dcs-ai-cli 경유, Snowflake 크리덴셜 불필요)
+- [x] 7명 체제 확장 — 윤지수(고객 분석) + 정민호(마케팅 성과) 추가
+- [x] 상품 이미지 렌더링 (채팅에서 이미지 URL 자동 감지+인라인 표시)
+- [x] 대화 기록 영속화 (server/conversations/ JSON, 서버 재시작 시 복원)
+- [x] 경쟁사 크롤러 자동 스케줄 (run_competitor_crawler 도구, 7일 쿨다운)
+- [x] consult_agent 깊이 3단계 허용 (에이전트 간 자유 연쇄 상담)
 - [x] Render.com 배포 완료 → https://ai-agnets-office.onrender.com/
 - [ ] Snowflake에 전체 브랜드 데이터 업로드 (권한 확보 후)
 - [x] 전체 회의 모드에서 에이전트 tool_use 지원
@@ -368,6 +396,9 @@ C:\Users\AD0903\ai_office_project\
 
 | 날짜 | 내용 |
 |------|------|
+| 2026-03-30 | **7명 체제 확장** — 윤지수(고객 분석, KG API get_customer_sale) + 정민호(마케팅 성과, KG API 인플루언서 캠페인/컨텐츠) 추가. 캔버스 3×2 그리드 |
+| 2026-03-30 | **상품 이미지 렌더링 + 대화 영속화 + 경쟁사 크롤러 자동화** — formatMessage 이미지 감지, server/conversations/ JSON 저장, run_competitor_crawler 도구 |
+| 2026-03-30 | **consult_agent 깊이 3단계 허용** — 에이전트 간 자유로운 연쇄 상담 (A→B→C→D) |
 | 2026-03-30 | **전원 KG API 전환** — 최재원(채널 판매), 박도현(상품/원가/카테고리/랭킹/재고/유사상품), 김하늘(네이버 키워드) 모두 지식그래프 API로 전환. Snowflake 직접 접속 제거 |
 | 2026-03-30 | **Phase 6.0 완료** — 에이전트 자율 상담 `consult_agent` (협업/DM 탭 제거 → 자율 상담으로 대체, Meeting Room 2 이동, 상담 블록 시각화) |
 | 2026-03-28 | **Phase 5.4 완료** — 에이전트 간 DM (💌 직접 대화, 2단계 질문-답변, tool_use 지원) → Phase 6.0으로 대체 |
