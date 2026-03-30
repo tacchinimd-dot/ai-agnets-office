@@ -684,8 +684,14 @@ const AGENT_INFO = [
 ];
 
 const MR = [
+  // 대회의실 — CEO Room 하단, 전체 회의용 (10석)
+  { x:20, y:440, w:270, h:420, label:'CONFERENCE ROOM', tableX:155, tableY:650,
+    seats:[{x:60,y:600},{x:110,y:600},{x:160,y:600},{x:210,y:600},{x:260,y:600},
+           {x:60,y:710},{x:110,y:710},{x:160,y:710},{x:210,y:710},{x:260,y:710}] },
+  // 소회의실 — 우측 상단, 자율 상담용
   { x:1290, y:60,  w:285, h:400, label:'MEETING ROOM 1', tableX:1432, tableY:255,
-    seats:[{x:1340,y:300},{x:1400,y:300},{x:1460,y:300},{x:1520,y:300},{x:1340,y:220},{x:1400,y:220},{x:1460,y:220}] },
+    seats:[{x:1362,y:300},{x:1432,y:300},{x:1502,y:300},{x:1362,y:220},{x:1432,y:220},{x:1502,y:220}] },
+  // 소회의실 — 우측 하단, 자율 상담용
   { x:1290, y:460, w:285, h:400, label:'MEETING ROOM 2', tableX:1432, tableY:655,
     seats:[{x:1362,y:700},{x:1432,y:700},{x:1502,y:700},{x:1362,y:620},{x:1432,y:620},{x:1502,y:620}] }
 ];
@@ -845,17 +851,18 @@ function endCanvasMeeting() {
 let activeConsultations = []; // [{callingId, targetId}]
 
 function triggerCanvasConsultation(callingAgentId, targetAgentId) {
-  const mr = MR[1]; // Meeting Room 2 사용
+  // 소회의실 1(MR[1]) 또는 2(MR[2]) 중 비어있는 곳 사용
+  const mrIdx = activeConsultations.some(c => agents.find(a=>a.id===c.callingId)?.mrIdx === 1) ? 2 : 1;
+  const mr = MR[mrIdx];
   const pair = [callingAgentId, targetAgentId];
   activeConsultations.push({ callingId: callingAgentId, targetId: targetAgentId });
 
   pair.forEach((id, i) => {
     const agent = agents.find(a => a.id === id);
     if (!agent) return;
-    // 이미 회의 중이면 스킵
     if (agent.state === 'inMeeting' || agent.state === 'toMeeting') return;
     agent.seatIdx = i;
-    agent.mrIdx = 1;
+    agent.mrIdx = mrIdx;
     agent.state = 'toMeeting';
     agent.setTarget(mr.seats[i].x, mr.seats[i].y);
     agent.statusText = '상담 이동 중';
@@ -1293,8 +1300,8 @@ function drawWorkstation(c, agent, frame) {
 function drawCEORoom(c, frame) {
   c.save(); c.globalAlpha=.22; c.fillStyle='#2a3a5a'; c.fillRect(20,60,270,360); c.globalAlpha=1; c.restore();
   c.fillStyle='rgba(180,200,255,0.75)'; c.font='bold 11px Segoe UI'; c.textAlign='center'; c.fillText('CEO ROOM',155,80);
-  c.fillStyle='#1e1608'; c.fillRect(20,416,272,8);
-  c.fillStyle='#1e1608'; c.fillRect(286,60,8,802);
+  c.fillStyle='#1e1608'; c.fillRect(20,416,272,8);  // CEO Room 하단 벽
+  c.fillStyle='#1e1608'; c.fillRect(286,60,8,370); // CEO Room 우측 벽 (대회의실 위까지)
   roundRect(c, 22, 100, 42, 160, 2, '#3a2808', '#2a1808', 1);
   c.strokeStyle='#5a4020'; c.lineWidth=1;
   for (let si=0;si<5;si++) { c.beginPath(); c.moveTo(22,120+si*28); c.lineTo(64,120+si*28); c.stroke(); }
@@ -1320,6 +1327,56 @@ function drawPlant(c, px, py) {
   for (let i=0;i<so.length;i++) { const [ox,oy]=so[i]; c.fillStyle=lc[i%lc.length]; c.beginPath(); c.ellipse(px+ox*1.5,py-48+oy,7+Math.abs(ox),4,ox*.15,0,Math.PI*2); c.fill(); }
 }
 
+// ── Conference Room (대회의실) ────────────────────────────────────────────────
+function drawConferenceRoom(c, frame) {
+  const cr = MR[0];
+  // 바닥
+  c.save(); c.globalAlpha=.18; c.fillStyle='#2a2050'; c.fillRect(cr.x, cr.y, cr.w, cr.h); c.globalAlpha=1; c.restore();
+  // 라벨
+  c.fillStyle='rgba(200,180,255,0.75)'; c.font='bold 11px Segoe UI'; c.textAlign='center';
+  c.fillText('CONFERENCE ROOM', cr.x + cr.w/2, cr.y + 20);
+  // 벽면
+  c.fillStyle='#1e1608'; c.fillRect(cr.x, cr.y, cr.w, 6); // 상단 벽
+  c.fillStyle='#1e1608'; c.fillRect(cr.x + cr.w - 4, cr.y, 8, cr.h); // 우측 벽
+  // 대형 테이블
+  const tx = cr.tableX, ty = cr.tableY;
+  c.fillStyle='#2a1808'; c.fillRect(tx-100, ty-10, 10, 26); c.fillRect(tx+90, ty-10, 10, 26); // 다리
+  const tg = c.createLinearGradient(tx-120, ty-30, tx+120, ty+30);
+  tg.addColorStop(0,'#6a4020'); tg.addColorStop(.5,'#8a5830'); tg.addColorStop(1,'#6a4020');
+  roundRect(c, tx-120, ty-30, 240, 60, 10, tg, '#3a2010', 1.5);
+  c.strokeStyle='rgba(255,255,255,0.12)'; c.lineWidth=1;
+  c.beginPath(); c.moveTo(tx-112, ty-27); c.lineTo(tx+112, ty-27); c.stroke();
+  // 의자 (상단 5개 + 하단 5개)
+  for (let i=0; i<5; i++) {
+    const cx2 = tx - 96 + i*48, cy2 = ty + 42;
+    roundRect(c, cx2-14, cy2, 28, 10, 3, '#2a2040', '#1a1030', 1);
+    roundRect(c, cx2-12, cy2-18, 24, 20, 3, '#3a2e55', '#2a2040', 1);
+  }
+  for (let i=0; i<5; i++) {
+    const cx2 = tx - 96 + i*48, cy2 = ty - 52;
+    roundRect(c, cx2-14, cy2+10, 28, 10, 3, '#2a2040', '#1a1030', 1);
+    roundRect(c, cx2-12, cy2-12, 24, 20, 3, '#3a2e55', '#2a2040', 1);
+  }
+  // 대형 모니터 (벽면 상단)
+  const mw = 160, mh = 80;
+  const mmx = cr.x + cr.w/2, mmy = cr.y + 55;
+  roundRect(c, mmx - mw/2, mmy, mw, mh, 5, '#111118', '#2a2a35', 1.5);
+  roundRect(c, mmx - mw/2 + 4, mmy + 4, mw - 8, mh - 8, 3, '#040410');
+  c.fillStyle='rgba(30,60,160,0.2)'; c.fillRect(mmx - mw/2 + 4, mmy + 4, mw - 8, mh - 8);
+  // 모니터 스탠드
+  c.fillStyle='#222'; c.fillRect(mmx - 3, mmy + mh, 6, 12);
+  c.fillStyle='#333'; c.fillRect(mmx - 15, mmy + mh + 10, 30, 4);
+  // glow
+  const ga = .2 + Math.sin(Date.now()*.0015)*.1;
+  c.save(); c.globalAlpha=ga; c.shadowColor='#6040ff'; c.shadowBlur=15;
+  c.strokeStyle='#6040ff'; c.lineWidth=2;
+  roundRect(c, mmx - mw/2, mmy, mw, mh, 5, null, '#6040ff', 2);
+  c.globalAlpha=1; c.restore();
+  // 화분
+  drawPlant(c, cr.x + 30, cr.y + cr.h - 10);
+  drawPlant(c, cr.x + cr.w - 30, cr.y + cr.h - 10);
+}
+
 // ── Meeting Room ──────────────────────────────────────────────────────────────
 function drawMeetingRoom(c, mr, frame) {
   c.save(); c.globalAlpha=.28; c.fillStyle='#1a1040'; c.fillRect(mr.x,mr.y,mr.w,mr.h); c.globalAlpha=1; c.restore();
@@ -1334,16 +1391,15 @@ function drawMeetingRoom(c, mr, frame) {
   c.beginPath(); c.moveTo(tx-92,ty-19); c.lineTo(tx+92,ty-19); c.stroke();
   for (let i=0;i<3;i++) { const cx2=tx-66+i*66, cy2=ty+32; roundRect(c,cx2-16,cy2,32,12,3,'#2a2040','#1a1030',1); roundRect(c,cx2-14,cy2-20,28,22,3,'#3a2e55','#2a2040',1); }
   for (let i=0;i<3;i++) { const cx2=tx-66+i*66, cy2=ty-48; roundRect(c,cx2-16,cy2+8,32,12,3,'#2a2040','#1a1030',1); roundRect(c,cx2-14,cy2-14,28,22,3,'#3a2e55','#2a2040',1); }
-  const mx=mr.x+mr.w-10, my=mr.y+mr.h/2-38;
-  roundRect(c,mx-104,my,104,76,4,'#111118','#2a2a35',1.5);
-  roundRect(c,mx-100,my+3,96,70,2,'#040410');
-  c.fillStyle='rgba(30,60,160,0.35)'; c.fillRect(mx-100,my+3,96,70);
-  c.fillStyle='rgba(180,200,255,0.9)'; c.font='bold 10px Segoe UI'; c.textAlign='center'; c.fillText('MEETING',mx-52,my+24);
-  c.font='8px Segoe UI'; c.fillStyle='rgba(140,160,220,0.85)';
-  c.fillText('Q1 전략 리뷰',mx-52,my+38); c.fillText('팀 얼라인먼트',mx-52,my+50); c.fillText('액션 아이템',mx-52,my+62);
+  // 모니터 — 벽면에 붙임 (테이블에서 멀리)
+  const mx=mr.x+mr.w-8, my=mr.y+30;
+  roundRect(c,mx-84,my,84,56,4,'#111118','#2a2a35',1.5);
+  roundRect(c,mx-80,my+3,76,50,2,'#040410');
+  c.fillStyle='rgba(30,60,160,0.25)'; c.fillRect(mx-80,my+3,76,50);
+  // 모니터 glow
   const ga=.25+Math.sin(Date.now()*.002+mr.y)*.12;
   c.save(); c.globalAlpha=ga; c.shadowColor='#4060ff'; c.shadowBlur=12; c.strokeStyle='#4060ff'; c.lineWidth=2;
-  roundRect(c,mx-104,my,104,76,4,null,'#4060ff',2);
+  roundRect(c,mx-84,my,84,56,4,null,'#4060ff',2);
   c.globalAlpha=1; c.restore();
 }
 
@@ -1514,7 +1570,8 @@ function loop() {
   c.drawImage(woodOff,0,0);
   drawCeiling(c);
   drawCEORoom(c, frame);
-  MR.forEach(mr=>drawMeetingRoom(c,mr,frame));
+  drawConferenceRoom(c, frame);
+  MR.slice(1).forEach(mr=>drawMeetingRoom(c,mr,frame));
   drawDecorations(c);
   agents.forEach(agent=>drawWorkstation(c,agent,frame));
   drawMeetingLines(c);
