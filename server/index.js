@@ -8,10 +8,12 @@ const path = require('path');
 const Anthropic = require('@anthropic-ai/sdk');
 const { AGENTS, getAgent, getConversation, addMessage, clearConversation, clearAllConversations } = require('./agents');
 const { DATA_ANALYST_TOOLS } = require('./tools');
-const { getChannelSales, getDateDataset, testConnection: testKgConnection, getProductProperties, getProductCost, getSeasonWearPerformance, getStyleRanking, getSimilarProducts, getProductStock, getNaverSearchKeyword } = require('./kg-api');
+const { getChannelSales, getDateDataset, testConnection: testKgConnection, getProductProperties, getProductCost, getSeasonWearPerformance, getStyleRanking, getSimilarProducts, getProductStock, getNaverSearchKeyword, getCustomerSale, getMarketingCampaignProduct, getMarketingContentPerformance } = require('./kg-api');
 const { MARKET_AGENT_TOOLS } = require('./market-tools');
 const { PRODUCT_PLANNING_TOOLS } = require('./product-tools');
 const { TREND_AGENT_TOOLS, loadMusinsaData, loadTiktokData, loadGoogleTrends, queryRanking, getRankingSummary, getCategoryTrend, queryTiktokHashtags, getTiktokSummary, queryGoogleTrends, getGoogleTrendsSummary, runMusinsaCrawler, runTiktokCrawler } = require('./trend-tools');
+const { CUSTOMER_ANALYST_TOOLS } = require('./customer-tools');
+const { MARKETING_ANALYST_TOOLS } = require('./marketing-tools');
 // snowflake.js는 더 이상 에이전트에서 사용하지 않음 (전원 KG API 전환)
 const { loadAll, queryProducts, getBrandSummary, compareBrands, getProductCount } = require('./competitors');
 const { execFile } = require('child_process');
@@ -228,6 +230,8 @@ function buildConsultTool(callingAgentId) {
     { id: 2, name: '김하늘', desc: 'Trend Agent — 네이버 키워드, 무신사, TikTok, 구글 트렌드' },
     { id: 3, name: '박도현', desc: 'Product Planning — 상품 마스터, 카테고리 판매, 원가' },
     { id: 4, name: '최재원', desc: 'Data Analyst — 채널별 판매 실적 (DB_SCS_W)' },
+    { id: 5, name: '윤지수', desc: '고객 분석 (성별/연령대/채널별 구매 패턴)' },
+    { id: 6, name: '정민호', desc: '마케팅 성과 (인플루언서 캠페인 ROI/컨텐츠 성과)' },
   ].filter(a => a.id !== callingAgentId);
 
   return {
@@ -236,7 +240,7 @@ function buildConsultTool(callingAgentId) {
     input_schema: {
       type: 'object',
       properties: {
-        target_agent_id: { type: 'number', description: '상담할 에이전트 ID (0~4)' },
+        target_agent_id: { type: 'number', description: '상담할 에이전트 ID (0~6)' },
         question: { type: 'string', description: '구체적인 질문 (데이터 요청 시 원하는 지표/기간/조건을 명확히)' },
         context: { type: 'string', description: '질문 배경 (현재 분석 맥락을 간략히 공유)' },
       },
@@ -576,6 +580,50 @@ async function executeTool(toolName, toolInput, context = {}) {
     return JSON.stringify(result, null, 2);
   }
 
+  // 윤지수(Customer Analyst) — KG API 도구
+  if (toolName === 'query_customer_sales') {
+    console.log(`[Tool] query_customer_sales — ${toolInput.purpose}`);
+    const result = await getCustomerSale({
+      selectors_customer: toolInput.selectors_customer,
+      selectors_product: toolInput.selectors_product,
+      selectors_channel: toolInput.selectors_channel,
+      filters_product: toolInput.filters_product,
+      filters_customer: toolInput.filters_customer,
+      start_dt: toolInput.start_dt,
+      end_dt: toolInput.end_dt,
+      is_time_series: toolInput.is_time_series,
+      time_series_unit: toolInput.time_series_unit,
+    });
+    return JSON.stringify(result, null, 2);
+  }
+
+  // 정민호(Marketing Analyst) — KG API 도구
+  if (toolName === 'query_campaign_performance') {
+    console.log(`[Tool] query_campaign_performance — ${toolInput.purpose}`);
+    const result = await getMarketingCampaignProduct({
+      selectors_campaign: toolInput.selectors_campaign,
+      selectors_influencer: toolInput.selectors_influencer,
+      selectors_product: toolInput.selectors_product,
+      filters: toolInput.filters,
+      start_dt: toolInput.start_dt,
+      end_dt: toolInput.end_dt,
+    });
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolName === 'query_content_performance') {
+    console.log(`[Tool] query_content_performance — ${toolInput.purpose}`);
+    const result = await getMarketingContentPerformance({
+      selectors_influencer: toolInput.selectors_influencer,
+      selectors_campaign: toolInput.selectors_campaign,
+      selectors_content: toolInput.selectors_content,
+      filters: toolInput.filters,
+      start_dt: toolInput.start_dt,
+      end_dt: toolInput.end_dt,
+    });
+    return JSON.stringify(result, null, 2);
+  }
+
   // 이서연(Market Agent) 도구
   if (toolName === 'query_competitors') {
     console.log(`[Tool] query_competitors — filters:`, JSON.stringify(toolInput));
@@ -622,7 +670,7 @@ async function handleChat(ws, agentId, userMessage) {
   appendChatLog(agentId, '사용자', userMessage);
   logUserInstruction(agentId, userMessage);
 
-  // 이서연(1) + 김하늘(2) + 박도현(3) + 최재원(4) tool_use 활성화
+  // 이서연(1) + 김하늘(2) + 박도현(3) + 최재원(4) + 윤지수(5) + 정민호(6) tool_use 활성화
   const tools = getToolsForAgent(agentId);
   const useTools = !!tools;
 
@@ -755,9 +803,11 @@ const AGENT_FOLDERS = {
   2: path.join(__dirname, '..', 'Consumer Trend Agent'),
   3: path.join(__dirname, '..', 'Product Planning Agent'),
   4: path.join(__dirname, '..', 'Data Analyst Agent'),
+  5: path.join(__dirname, '..', 'Customer Analyst Agent'),
+  6: path.join(__dirname, '..', 'Marketing Analyst Agent'),
 };
 
-const AGENT_NAMES = { 0: '한준혁', 1: '이서연', 2: '김하늘', 3: '박도현', 4: '최재원' };
+const AGENT_NAMES = { 0: '한준혁', 1: '이서연', 2: '김하늘', 3: '박도현', 4: '최재원', 5: '윤지수', 6: '정민호' };
 
 // 에이전트별 최근 활동 추적 (STATUS 업데이트용)
 const agentActivity = {
@@ -766,6 +816,8 @@ const agentActivity = {
   2: { recentTasks: [], recentTools: [], lastActive: null },
   3: { recentTasks: [], recentTools: [], lastActive: null },
   4: { recentTasks: [], recentTools: [], lastActive: null },
+  5: { recentTasks: [], recentTools: [], lastActive: null },
+  6: { recentTasks: [], recentTools: [], lastActive: null },
 };
 
 function getDateStr() {
@@ -945,6 +997,9 @@ const TOOL_LABELS = {
   get_top_selling_styles: '🏆 판매 TOP 스타일',
   get_similar_styles: '🔗 유사상품 조회',
   get_product_stock_info: '📦 상품 재고 조회',
+  query_customer_sales: '👥 고객 판매 분석',
+  query_campaign_performance: '📢 캠페인 성과',
+  query_content_performance: '📱 컨텐츠 성과',
   consult_agent: '🤝 에이전트 상담',
 };
 
@@ -1071,6 +1126,8 @@ function getToolsForAgent(agentId, includeConsult = true) {
   else if (agentId === 2) tools = [...TREND_AGENT_TOOLS];
   else if (agentId === 3) tools = [...PRODUCT_PLANNING_TOOLS];
   else if (agentId === 4) tools = [...DATA_ANALYST_TOOLS];
+  else if (agentId === 5) tools = [...CUSTOMER_ANALYST_TOOLS];
+  else if (agentId === 6) tools = [...MARKETING_ANALYST_TOOLS];
 
   if (includeConsult) {
     tools.push(buildConsultTool(agentId));
@@ -1085,7 +1142,7 @@ async function handleMeeting(ws, userMessage) {
   ws.send(JSON.stringify({ type: 'meeting_start' }));
 
   // CEO(0) → Market(1) → Trend(2) → Product(3) → Data(4) 순서
-  const order = [0, 1, 2, 3, 4];
+  const order = [0, 1, 2, 3, 4, 5, 6];
   const allResponses = [];
 
   for (const agentId of order) {
@@ -1374,7 +1431,7 @@ async function executeScheduledChat(schedule) {
 async function executeScheduledMeeting(schedule) {
   broadcast({ type: 'meeting_start', source: 'scheduled' });
 
-  const order = [0, 1, 2, 3, 4];
+  const order = [0, 1, 2, 3, 4, 5, 6];
   const allResponses = [];
   let fullReport = '';
 

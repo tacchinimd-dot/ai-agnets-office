@@ -564,19 +564,27 @@ const AGENT_CFG = [
 
   {id:1, name:'이서연', gender:'F', skin:'#F5C5A3', hair:'#3D2010', hairStyle:'long',
    jacketC:'#133320', skirtC:'#133320', blouseC:'#f0fff4', shoeC:'#0a0a18',
-   hx:600, hy:370, role:'Market Agent', color:'#3AB87A'},
+   hx:500, hy:370, role:'Market Agent', color:'#3AB87A'},
 
   {id:2, name:'김하늘', gender:'F', skin:'#DFA882', hair:'#111111', hairStyle:'bun',
    jacketC:'#2e2806', skirtC:'#2e2806', blouseC:'#fffef0', shoeC:'#0a0a0a',
-   hx:900, hy:370, role:'Trend Agent', color:'#D4A017'},
+   hx:750, hy:370, role:'Trend Agent', color:'#D4A017'},
 
   {id:3, name:'박도현', gender:'M', skin:'#E8B090', hair:'#2A1A10', hairStyle:'medium',
    jacketC:'#3a0c0c', pantsC:'#3a0c0c', tieC:'#cc3322', shoeC:'#080808',
-   hx:600, hy:620, role:'Product Planning', color:'#E05040'},
+   hx:1000, hy:370, role:'Product Planning', color:'#E05040'},
 
   {id:4, name:'최재원', gender:'M', skin:'#F0C090', hair:'#1A0E05', hairStyle:'short',
    jacketC:'#1a0c3a', pantsC:'#1a0c3a', tieC:'#7733cc', shoeC:'#080808',
-   hx:900, hy:620, role:'Data Analyst', color:'#9055D8'},
+   hx:500, hy:620, role:'Data Analyst', color:'#9055D8'},
+
+  {id:5, name:'윤지수', gender:'F', skin:'#F0C8A8', hair:'#2A1510', hairStyle:'long',
+   jacketC:'#0c2a3a', skirtC:'#0c2a3a', blouseC:'#e8f4ff', shoeC:'#0a0a18',
+   hx:750, hy:620, role:'Customer Analyst', color:'#FF6B9D'},
+
+  {id:6, name:'정민호', gender:'M', skin:'#E5B890', hair:'#181008', hairStyle:'medium',
+   jacketC:'#2a1a0c', pantsC:'#2a1a0c', tieC:'#dd8833', shoeC:'#080808',
+   hx:1000, hy:620, role:'Marketing Analyst', color:'#FF8C42'},
 ];
 
 // ── Skill badges per agent ────────────────────────────────────────────────────
@@ -592,6 +600,10 @@ const AGENT_SKILLS = [
   [{ label:'상품DB', color:'#E05040', icon:'📦' }, { label:'원가', color:'#cc7733', icon:'💰' }],
   // 최재원 (Data) — Snowflake 판매
   [{ label:'판매DB', color:'#9055D8', icon:'📊' }],
+  // 윤지수 (Customer) — 고객 분석
+  [{ label:'고객DB', color:'#FF6B9D', icon:'👥' }],
+  // 정민호 (Marketing) — 마케팅 성과
+  [{ label:'캠페인', color:'#FF8C42', icon:'📢' }, { label:'컨텐츠', color:'#ee8833', icon:'📱' }],
 ];
 
 // ── Live status tracking ─────────────────────────────────────────────────────
@@ -602,6 +614,8 @@ const agentLiveStatus = {
   2: { status: 'idle', label: '업무 중', color: '#3fb950' },
   3: { status: 'idle', label: '업무 중', color: '#3fb950' },
   4: { status: 'idle', label: '업무 중', color: '#3fb950' },
+  5: { status: 'idle', label: '업무 중', color: '#3fb950' },
+  6: { status: 'idle', label: '업무 중', color: '#3fb950' },
 };
 
 function setAgentLiveStatus(agentId, status) {
@@ -652,12 +666,26 @@ const AGENT_INFO = [
     current: ['판매 데이터 분석 중', 'SKU 효율 분석'],
     pending: ['카테고리별 성과 분석', '전략 적합성 검증'],
     question: '"이 전략이 실제로 맞는가?"'
+  },
+  {
+    title: '고객 분석가', titleSub: 'Customer Analyst',
+    roles: ['고객 세그먼트별 구매 패턴 분석', '성별/연령대/채널별 판매 분석'],
+    current: ['고객 세그먼트 분석 중', '구매 패턴 조사'],
+    pending: ['고객 이탈 분석', 'CRM 전략 제안'],
+    question: '"우리 고객은 누구이고, 무엇을 사는가?"'
+  },
+  {
+    title: '마케팅 성과 분석가', titleSub: 'Marketing Performance Analyst',
+    roles: ['인플루언서 캠페인 ROI 분석', '컨텐츠 성과(좋아요/댓글/조회수) 분석'],
+    current: ['캠페인별 비용 효율 분석 중', '채널별 성과 비교'],
+    pending: ['셀럽 vs 마이크로 인플루언서 비교', '시즌별 마케팅 투자 최적화'],
+    question: '"마케팅이 실제로 효과가 있는가?"'
   }
 ];
 
 const MR = [
   { x:1290, y:60,  w:285, h:400, label:'MEETING ROOM 1', tableX:1432, tableY:255,
-    seats:[{x:1362,y:300},{x:1432,y:300},{x:1502,y:300},{x:1362,y:220},{x:1432,y:220},{x:1502,y:220}] },
+    seats:[{x:1340,y:300},{x:1400,y:300},{x:1460,y:300},{x:1520,y:300},{x:1340,y:220},{x:1400,y:220},{x:1460,y:220}] },
   { x:1290, y:460, w:285, h:400, label:'MEETING ROOM 2', tableX:1432, tableY:655,
     seats:[{x:1362,y:700},{x:1432,y:700},{x:1502,y:700},{x:1362,y:620},{x:1432,y:620},{x:1502,y:620}] }
 ];

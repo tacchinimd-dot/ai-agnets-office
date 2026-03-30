@@ -246,6 +246,90 @@ async function getNaverSearchKeyword(params) {
   return normalizeResult(raw);
 }
 
+/**
+ * 고객 판매 분석
+ */
+async function getCustomerSale(params) {
+  const body = {
+    selectors_customer: params.selectors_customer || [{ system_field_name: 'CUST_SEX' }, { system_field_name: 'CUST_AGE_GRP_AGE_GRP' }],
+    selectors_product: params.selectors_product || [{ system_field_name: 'ITEM_GROUP' }],
+    selectors_channel: params.selectors_channel || [],
+    selectors_sale: params.selectors_sale || [],
+    metrics: params.metrics || [{ system_field_name: 'SALE_AMT' }, { system_field_name: 'SALE_QTY' }],
+    filters_product: params.filters_product || [{ system_code: 'ST', system_field_name: 'BRD_CD' }],
+    filters_channel: params.filters_channel || [],
+    filters_customer: params.filters_customer || [],
+    order_by_clauses: params.order_by_clauses || [{ system_field_name: 'SALE_AMT', direction: 'DESC' }],
+    periods: {
+      start_dt: params.start_dt,
+      end_dt: params.end_dt,
+      is_time_series: params.is_time_series || false,
+      ...(params.time_series_unit ? { time_series_unit: params.time_series_unit } : {}),
+    },
+    meta_info: params.meta_info || { requested_record_rows: 20000, data_size_only: false, sql_only: false, with_sql: false, data_type: 'list' },
+  };
+  console.log('[KG-API] getCustomerSale 호출:', JSON.stringify(body).slice(0, 300));
+  const raw = await callKgApi('/api/v1/hq/customer/customer_sale', 'POST', body);
+  return normalizeResult(raw);
+}
+
+/**
+ * 인플루언서 마케팅 캠페인-상품 성과
+ */
+async function getMarketingCampaignProduct(params) {
+  const body = {
+    selectors_influencer: params.selectors_influencer || [{ system_field_name: 'SYS_BRD_CD' }],
+    selectors_campaign: params.selectors_campaign || [{ system_field_name: 'INFLUENCER_MARKETING_CAMPAIGN_NM' }],
+    selectors_content: params.selectors_content || [],
+    selectors_product: params.selectors_product || [],
+    filters: params.filters || [{ system_code: '8', system_field_name: 'SYS_BRD_CD' }],
+    filters_product: params.filters_product || [],
+    metrics: params.metrics || [
+      { system_field_name: 'CAMPAIGN_CNT' },
+      { system_field_name: 'CONTENT_CNT' },
+      { system_field_name: 'INFLUENCER_CNT' },
+      { system_field_name: 'INFLUENCER_MARKETING_CONTENT_LIKE_CNT' },
+      { system_field_name: 'INFLUENCER_MARKETING_CONTENT_COMMENT_CNT' },
+      { system_field_name: 'INFLUENCER_MARKETING_CONTENT_VIDEO_VIEW_CNT' },
+      { system_field_name: 'INFLUENCER_MARKETING_CONTENT_COST' },
+    ],
+    periods_day: params.start_dt ? { start_dt: params.start_dt, end_dt: params.end_dt, is_time_series: false } : {},
+    periods_week: {},
+    periods_month: {},
+    meta_info: params.meta_info || { requested_record_rows: 20000, data_size_only: false, sql_only: false, with_sql: false, data_type: 'list' },
+  };
+  console.log('[KG-API] getMarketingCampaignProduct 호출:', JSON.stringify(body).slice(0, 300));
+  const raw = await callKgApi('/api/v1/hq/marketing/influencer_marketing_campaign_product', 'POST', body);
+  return normalizeResult(raw);
+}
+
+/**
+ * 인플루언서 마케팅 컨텐츠 성과
+ */
+async function getMarketingContentPerformance(params) {
+  const body = {
+    selectors_influencer: params.selectors_influencer || [{ system_field_name: 'SYS_BRD_CD' }, { system_field_name: 'INFLUENCER_SNS_CHANNEL_NM' }],
+    selectors_campaign: params.selectors_campaign || [{ system_field_name: 'INFLUENCER_MARKETING_CAMPAIGN_NM' }],
+    selectors_content: params.selectors_content || [{ system_field_name: 'INFLUENCER_MARKETING_CONTENT_TYPE' }],
+    filters: params.filters || [{ system_code: '8', system_field_name: 'SYS_BRD_CD' }],
+    filters_product: params.filters_product || [],
+    metrics: params.metrics || [
+      { system_field_name: 'CONTENT_CNT' },
+      { system_field_name: 'INFLUENCER_MARKETING_CONTENT_COST' },
+      { system_field_name: 'INFLUENCER_MARKETING_CONTENT_LIKE_CNT' },
+      { system_field_name: 'INFLUENCER_MARKETING_CONTENT_COMMENT_CNT' },
+      { system_field_name: 'INFLUENCER_MARKETING_CONTENT_VIDEO_VIEW_CNT' },
+    ],
+    periods_day: params.start_dt ? { start_dt: params.start_dt, end_dt: params.end_dt, is_time_series: false } : {},
+    periods_week: {},
+    periods_month: {},
+    meta_info: params.meta_info || { requested_record_rows: 20000, data_size_only: false, sql_only: false, with_sql: false, data_type: 'list' },
+  };
+  console.log('[KG-API] getMarketingContentPerformance 호출:', JSON.stringify(body).slice(0, 300));
+  const raw = await callKgApi('/api/v1/hq/marketing/influencer_marketing_content_performance', 'POST', body);
+  return normalizeResult(raw);
+}
+
 module.exports = {
   callKgApi,
   normalizeResult,
@@ -259,4 +343,7 @@ module.exports = {
   getSimilarProducts,
   getProductStock,
   getNaverSearchKeyword,
+  getCustomerSale,
+  getMarketingCampaignProduct,
+  getMarketingContentPerformance,
 };
