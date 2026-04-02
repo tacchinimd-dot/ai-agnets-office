@@ -396,6 +396,7 @@ C:\Users\AD0903\ai_office_project\
 
 | 날짜 | 내용 |
 |------|------|
+| 2026-04-02 | **UX 대폭 개선** — 이동 속도 3.3배 증가, 전원 도착 후 회의 시작(meeting_ready 핸드셰이크), 메시지 말줄임 제거(전체 표시), 응답 간결화(max_tokens 512, 3-5문장), KG API 오류 채팅 숨김 |
 | 2026-03-30 | **7명 체제 확장** — 윤지수(고객 분석, KG API get_customer_sale) + 정민호(마케팅 성과, KG API 인플루언서 캠페인/컨텐츠) 추가. 캔버스 3×2 그리드 |
 | 2026-03-30 | **상품 이미지 렌더링 + 대화 영속화 + 경쟁사 크롤러 자동화** — formatMessage 이미지 감지, server/conversations/ JSON 저장, run_competitor_crawler 도구 |
 | 2026-03-30 | **consult_agent 깊이 3단계 허용** — 에이전트 간 자유로운 연쇄 상담 (A→B→C→D) |

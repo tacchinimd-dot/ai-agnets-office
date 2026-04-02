@@ -184,9 +184,8 @@
   .minutes-time { font-size: 10px; color: #484f58; }
   .minutes-content {
     font-size: 12px; color: #adbac7; line-height: 1.5; margin-top: 4px;
-    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
   }
-  .minutes-entry.expanded .minutes-content { -webkit-line-clamp: unset; }
+  .minutes-entry.expanded .minutes-content { }
   .minutes-data-ref {
     display: inline-block; font-size: 10px; padding: 1px 5px; margin: 3px 2px 0 0;
     border-radius: 6px; background: rgba(210,153,34,0.12); color: #d29922; border: 1px solid #d2992233;
@@ -366,7 +365,6 @@
 
   .sched-instruction {
     font-size: 11px; color: #8b949e; line-height: 1.5; margin-bottom: 8px;
-    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   }
 
   .sched-meta { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #484f58; margin-bottom: 8px; }
@@ -779,6 +777,8 @@ class Agent {
         this.moveToward();
         if (this.arrivedAtTarget()) {
           this.state = 'inMeeting'; this.statusText = '회의 중'; setAgentLiveStatus(this.id, 'meeting');
+          // 전원 도착 체크: 모든 toMeeting 에이전트가 inMeeting이 되면 서버에 알림
+          checkAllAgentsArrived();
         }
         break;
       }
@@ -797,7 +797,7 @@ class Agent {
     if (!this.target) return;
     const dx=this.target.x-this.x, dy=this.target.y-this.y, d=Math.sqrt(dx*dx+dy*dy);
     if (d<2) return;
-    const spd=1.2+this.id*0.12;
+    const spd=4.0+this.id*0.15;
     this.vx=(dx/d)*spd; this.vy=(dy/d)*spd;
     this.x+=this.vx; this.y+=this.vy;
     if (Math.abs(this.vx)>0.1) this.dir=this.vx>0?1:-1;
@@ -814,11 +814,25 @@ const agents = AGENT_CFG.map(cfg => new Agent(cfg));
 // ── Canvas ↔ Chat event bridge ───────────────────────────────────────────────
 
 let activeMeetingRoom = -1; // -1 = 회의 없음, 0 = MR1, 1 = MR2
+let pendingMeetingReady = false; // 전체 회의 도착 대기 중
+
+// 전원 도착 체크: toMeeting 에이전트가 없으면 서버에 meeting_ready 전송
+function checkAllAgentsArrived() {
+  if (!pendingMeetingReady) return;
+  const stillMoving = agents.some(a => a.state === 'toMeeting');
+  if (!stillMoving) {
+    pendingMeetingReady = false;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'meeting_ready' }));
+    }
+  }
+}
 
 // 전체 회의: 7명 전원 대회의실(MR[0])로 이동
 function triggerCanvasMeeting() {
   if (activeMeetingRoom >= 0) return; // 이미 회의 중
   activeMeetingRoom = 0;
+  pendingMeetingReady = true;
   const mr = MR[0]; // 대회의실 (10석)
   agents.forEach((agent, i) => {
     if (i >= mr.seats.length) return; // 좌석 초과 방지
@@ -831,10 +845,15 @@ function triggerCanvasMeeting() {
   });
 }
 
-// 전체 회의 종료: 전원 자리 복귀
+// 전체 회의 종료: 전원 자리 복귀 (이동 중이면 즉시 도착 처리)
 function endCanvasMeeting() {
   activeMeetingRoom = -1;
   agents.forEach(agent => {
+    // 아직 이동 중이면 즉시 회의실 좌석으로 텔레포트 후 복귀
+    if (agent.state === 'toMeeting' && agent.target) {
+      agent.x = agent.target.x;
+      agent.y = agent.target.y;
+    }
     if (agent.state === 'inMeeting' || agent.state === 'toMeeting') {
       agent.state = 'returning';
       agent.setTarget(agent.hx, agent.hy);
@@ -882,6 +901,11 @@ function endCanvasConsultation(callingAgentId, targetAgentId) {
     if (!stillInConsult) {
       const agent = agents.find(a => a.id === id);
       if (agent && (agent.state === 'inMeeting' || agent.state === 'toMeeting')) {
+        // 아직 이동 중이면 즉시 도착 처리
+        if (agent.state === 'toMeeting' && agent.target) {
+          agent.x = agent.target.x;
+          agent.y = agent.target.y;
+        }
         agent.state = 'returning';
         agent.setTarget(agent.hx, agent.hy);
         agent.statusText = '자리로 복귀 중';
@@ -2038,8 +2062,21 @@ function handleWSMessage(msg) {
       const last = msgs[msgs.length - 1];
       if (last && last.streaming) {
         last.streaming = false;
+        // 오류만 포함된 응답은 채팅에서 제거
+        const errorPatterns = /오류:|ENOENT|Error:|에러:|API 오류|CLI 오류|spawn .* ENOENT/i;
+        const contentTrimmed = (last.content || '').replace(/📊 \*데이터 조회 중\.\.\.\*\s*/g, '').trim();
+        if (errorPatterns.test(contentTrimmed) && contentTrimmed.length < 500) {
+          msgs.pop();
+          isStreaming = false;
+          setAgentLiveStatus(msg.agentId, 'idle');
+          clearChatActiveAgent();
+          document.getElementById('chat-send').disabled = false;
+          document.getElementById('chat-input').focus();
+          renderMessages();
+          break;
+        }
         // 에이전트 응답을 회의록에 기록
-        const respPreview = (last.content || '').slice(0, 150) + (last.content.length > 150 ? '...' : '');
+        const respPreview = last.content || '';
         const isMeeting = currentChatAgent === -1;
         addMinutesEntry({
           type: isMeeting ? 'meeting' : 'chat',
@@ -2104,7 +2141,7 @@ function handleWSMessage(msg) {
       if (pendingIdx >= 0) {
         const callingColor2 = AGENT_CFG.find(a => a.id === msg.callingAgentId)?.color || '#58a6ff';
         const targetColor2 = AGENT_CFG.find(a => a.id === msg.targetAgentId)?.color || '#58a6ff';
-        const responsePreview = msg.response.length > 300 ? msg.response.slice(0, 300) + '...' : msg.response;
+        const responsePreview = msg.response;
         history[pendingIdx].content = `<div class="consultation-block consultation-done" data-consult-target="${msg.targetAgentId}">` +
           `<div class="consult-header" onclick="this.parentElement.classList.toggle('expanded')">` +
           `<span class="consult-icon">✅</span> ` +
@@ -2242,11 +2279,10 @@ function handleWSMessage(msg) {
       break;
     }
     case 'error': {
-      const msgs = chatHistories[currentChatAgent];
-      msgs.push({ role: 'agent', agentId: msg.agentId || -1, name: '시스템', content: msg.message });
+      // 오류 메시지는 채팅에 표시하지 않음 (콘솔에만 기록)
+      console.warn('[Agent Error]', msg.message);
       isStreaming = false;
       document.getElementById('chat-send').disabled = false;
-      renderMessages();
       break;
     }
   }
@@ -2605,7 +2641,7 @@ function renderSchedulePanel() {
           <span style="color:${color};font-weight:600">${escapeHtml(r.scheduleName||'')}</span>
           <span style="color:#484f58">${time}</span>
         </div>
-        <div style="font-size:11px;color:#8b949e;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${escapeHtml((r.preview||r.content||'').slice(0,200))}</div>
+        <div style="font-size:11px;color:#8b949e;line-height:1.4">${escapeHtml(r.preview||r.content||'')}</div>
       </div>`;
     }
   }

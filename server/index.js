@@ -294,8 +294,8 @@ async function executeConsultation(sendFn, callingAgentId, targetAgentId, questi
 
       const apiParams = {
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        system: targetAgent.systemPrompt + '\n\n[상담 모드] 동료 에이전트의 질문에 답변 중입니다. 도구를 적극 활용하여 데이터 기반으로 간결하게 답변하세요.',
+        max_tokens: 512,
+        system: targetAgent.systemPrompt + '\n\n[상담 모드] 핵심 수치와 결론만 간결하게 답변하세요 (3-5문장). 서론 없이 바로 답변.',
         messages: tempMessages,
       };
       if (tools) apiParams.tools = tools;
@@ -687,8 +687,8 @@ async function handleChat(ws, agentId, userMessage) {
 
       const apiParams = {
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        system: agent.systemPrompt,
+        max_tokens: 512,
+        system: agent.systemPrompt + '\n\n[중요] 핵심만 간결하게 답변하세요 (3-5문장). 불필요한 서론, 반복, 나열을 피하고 결론 위주로 말하세요. 도구 실행 오류가 발생하면 오류 메시지를 사용자에게 보여주지 말고, 해당 도구 없이 알고 있는 정보만으로 답변하세요.',
         messages,
       };
 
@@ -1141,6 +1141,19 @@ function getToolsForAgent(agentId, includeConsult = true) {
 async function handleMeeting(ws, userMessage) {
   ws.send(JSON.stringify({ type: 'meeting_start' }));
 
+  // 클라이언트에서 에이전트 전원 회의실 도착 알림을 기다림
+  await new Promise((resolve) => {
+    const onMsg = (raw) => {
+      try {
+        const m = JSON.parse(raw);
+        if (m.type === 'meeting_ready') { ws.off('message', onMsg); resolve(); }
+      } catch {}
+    };
+    ws.on('message', onMsg);
+    // 안전장치: 15초 내 도착 못 하면 강제 진행
+    setTimeout(() => { ws.off('message', onMsg); resolve(); }, 15000);
+  });
+
   // CEO(0) → Market(1) → Trend(2) → Product(3) → Data(4) 순서
   const order = [0, 1, 2, 3, 4, 5, 6];
   const allResponses = [];
@@ -1176,8 +1189,8 @@ async function handleMeeting(ws, userMessage) {
 
         const apiParams = {
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 2048,
-          system: agent.systemPrompt + '\n\n[회의 모드] 여러 에이전트가 참여하는 회의입니다. 데이터 조회가 필요하면 도구를 적극 사용하되, 최종 답변은 간결하게 핵심만 정리하세요 (3-7문장). 답변이 잘리지 않도록 완결된 문장으로 마무리하세요.',
+          max_tokens: 512,
+          system: agent.systemPrompt + '\n\n[회의 모드] 핵심 수치와 결론만 간결하게 보고하세요 (3-5문장). 서론/배경 설명 없이 바로 핵심부터. 완결된 문장으로 마무리하세요. 도구 오류가 발생하면 오류를 언급하지 말고, 알고 있는 정보만으로 답변하세요.',
           messages,
         };
 
@@ -1367,8 +1380,8 @@ async function executeScheduledChat(schedule) {
 
     const apiParams = {
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      system: agent.systemPrompt + '\n\n[자동 분석 모드] 정기 리포트를 작성 중입니다. 도구를 적극 사용하여 최신 데이터를 조회하고, 핵심 인사이트를 구조화된 형태로 정리해주세요.',
+      max_tokens: 512,
+      system: agent.systemPrompt + '\n\n[자동 분석 모드] 핵심 수치와 인사이트만 간결하게 정리하세요 (5문장 이내). 서론 없이 바로 결론.',
       messages,
     };
     if (tools) apiParams.tools = tools;
@@ -1459,8 +1472,8 @@ async function executeScheduledMeeting(schedule) {
       const messages = getConversation(agentId);
       const apiParams = {
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        system: agent.systemPrompt + '\n\n[자동 정기 회의] 데이터 조회가 필요하면 도구를 적극 사용하되, 최종 답변은 간결하게 핵심만 정리하세요 (3-7문장).',
+        max_tokens: 512,
+        system: agent.systemPrompt + '\n\n[자동 정기 회의] 핵심 수치와 결론만 간결하게 (3-5문장). 서론 없이 바로 핵심.',
         messages,
       };
       if (tools) apiParams.tools = tools;
